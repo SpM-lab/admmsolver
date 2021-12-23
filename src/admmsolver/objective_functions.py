@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.arraysetops import isin
 
 
 class MainLestSquaresBase(object):
@@ -44,11 +45,12 @@ class MainLestSquaresBase(object):
         pass
 
 
-class DenseMainLestSquares(MainLestSquaresBase):
+class MainLestSquares(MainLestSquaresBase):
     """
-    Main least-squares fitting problem with a dense matrix A
+    Main least-squares fitting problem with a dense/diagonal matrix A.
     """
     def __init__(self, A, y, V):
+        assert type(A) in [np.ndarray, DiagonalMatrix]
         assert A.ndim == 2
         super().__(A, y, V)
 
@@ -64,7 +66,7 @@ class DenseMainLestSquares(MainLestSquaresBase):
         if self._B_cache[0] != mu:
             self._B_cache = (
                 mu,
-                np.inv(self._AcA + mu * np.identity(A.shape[0]))
+                _inv(self._AcA + mu * np.identity(self._Nx))
             )
         return self._B_cache[1]
     
@@ -80,8 +82,8 @@ class DenseMainLestSquares(MainLestSquaresBase):
         """
         B = self._get_B(mu)
         xi1 = B @ (self._Ac @ y - h + self._V.conjugate().T @ nu)
-        xi2 = B @ V
-        return np.inv(V @ xi2) @ (np.identity(self._Nc) - self._V @ xi1)
+        xi2 = B @ self._V
+        return np.inv(self._V @ xi2) @ (np.identity(self._Nc) - self._V @ xi1)
 
 
 class SparseMainLestSquares(MainLestSquaresBase):
@@ -91,8 +93,18 @@ class SparseMainLestSquares(MainLestSquaresBase):
     pass
 
 
-class DiagonalMainLestSquares(MainLestSquaresBase):
+
+class DiagonalMatrix(object):
     """
-    Main least-squares fitting problem with a diagonal matrix A
+    Numpy-compatible type for diagonal matrices
     """
     pass
+
+def _inv(A):
+    """ Compute inverse of a matrix A"""
+    if isinstance(A, np.ndarray):
+        return np.inv(A)
+    elif isinstance(A, DiagonalMatrix):
+        return DiagonalMatrix(1/A.diagonals)
+    else:
+        raise ValueError("Invalid value of A!")
