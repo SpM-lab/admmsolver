@@ -1,9 +1,9 @@
 import numpy as np
 
 
-class SubObjectiveFunctionBase(object):
+class PenaltyBase(object):
     """
-    Sub objective function S(x)
+    Penalty term P(x)
     """
     def __init__(self):
         super().__init__()
@@ -11,15 +11,15 @@ class SubObjectiveFunctionBase(object):
     def solve(self, h, mu):
         """
         Return new x
-            x <- argmin_x S(x) + h^+ x + x^+ h + mu x^+ x
+            x <- argmin_x P(x) + h^+ x + x^+ h + mu x^+ x
         """
         pass
 
 
-class L1Regularizer(SubObjectiveFunctionBase):
+class L1Regularizer(PenaltyBase):
     """
     L1 regularization
-        S(x) = alpha * |x|_1
+        P(x) = alpha * |x|_1
     """
     def __init__(self, alpha):
         super().__init__()

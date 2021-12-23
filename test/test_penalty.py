@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 
-from admmsolver.addon import *
+from admmsolver.penalty import *
 
 def test_L1():
     """

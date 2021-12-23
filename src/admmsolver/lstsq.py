@@ -13,16 +13,18 @@ class LeastSquaresBase(object):
     We optimize
         |y - A x|_2^2 - nu^+ (V x -1) - (V x - 1)^+ nu + 
             h^+ x + x^+ h + mu x^+ x,
-    where the second line denotes contributions from other objective functions.
+    where the second line denotes contributions from other penalty terms.
     """
-    def __init__(self, A, y, V):
+    def __init__(self, A, y, V=None):
         assert y.ndim == 1
         assert A.ndim == 2
         self._Ny, self._Nx = A.shape
-        self._Nc = V.shape[0]
-
+        if V is None:
+            self._Nc = 0
+        else:
+            self._Nc = V.shape[0]
+            assert V.shape == (self._Nc, self._Nx)
         assert y.shape == (self._Ny,)
-        assert V.shape == (self._Nc, self._Nx)
 
         self._A = A
         self._y = y
@@ -35,13 +37,21 @@ class LeastSquaresBase(object):
         """
         pass
 
+    @property
+    def shape(self):
+        return (self._Ny, self._Nx)
+    
+    @property
+    def num_constraints(self):
+        return self._Nc
+
 
 class MatrixLeastSquares(LeastSquaresBase):
     """
     Least-squares fitting problem with a dense/diagonal matrix A.
     A closed-form solution is used.
     """
-    def __init__(self, A, y, V):
+    def __init__(self, A, y, V=None):
         assert type(A) in [np.ndarray, DiagonalMatrix]
         assert A.ndim == 2
         super().__init__(A, y, V)
@@ -65,21 +75,25 @@ class MatrixLeastSquares(LeastSquaresBase):
 
     def solve(self, nu, h, mu):
         """
-        Return new x and nu
+        Return new x and nu.
+        If V is not given, an array filled with zero is returned as nu.
         """
         assert nu.shape == (self._Nc,)
         assert h.shape == (self._Nx,)
 
         B = self._get_B(mu)
 
-        tildeh = h - self._V.conjugate().T @ nu
-        new_x = B @ (self._Ac @ self._y - tildeh)
+        if self._Nc == 0:
+            return B @ (self._Ac @ self._y - h), np.zeros(0)
+        else:
+            tildeh = h - self._V.conjugate().T @ nu
+            new_x = B @ (self._Ac @ self._y - tildeh)
 
-        xi1 = B @ (self._Ac @ self._y - h)
-        xi2 = B @ self._V.T.conjugate()
-        new_nu = _inv(self._V @ xi2) @ (np.identity(self._Nc) - self._V @ xi1)
+            xi1 = B @ (self._Ac @ self._y - h)
+            xi2 = B @ self._V.T.conjugate()
+            new_nu = _inv(self._V @ xi2) @ (np.identity(self._Nc) - self._V @ xi1)
 
-        return new_x, new_nu.reshape(self._Nc)
+            return new_x, new_nu.reshape(self._Nc)
 
 
 class SparseLeastSquares(LeastSquaresBase):

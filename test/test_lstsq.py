@@ -1,6 +1,6 @@
 import numpy as np
 
-from admmsolver.least_squares import *
+from admmsolver.lstsq import *
 
 def test_simplest_least_squares():
     # Solution should be x = 1
@@ -23,7 +23,7 @@ def test_simplest_least_squares():
     np.testing.assert_allclose(x, np.ones(1))
 
 
-def test_2x2_least_squares():
+def test_underdetermined_least_squares():
     # Solution should be x = 1
     # y: [1]
     # A: [1, 1]
