@@ -1,25 +1,26 @@
 import numpy as np
-from numpy.lib.arraysetops import isin
 
-
-class MainLestSquaresBase(object):
+class LeastSquaresBase(object):
     """
-    Base class for main least-squares fitting problem with linear constraint
+    Base class for main least-squares fitting problem 
         |y - A x|_2^2
-    subject to the constraint V x = 1.
+    subject to the linear constraint V x = 1.
     The shares of these matrices/vectors are
         y: (Ny,)
         A: (Ny, Nx)
         V: (Nc, Nx)
     The constraint is tread by the method of Lagrange multiplier.
     We optimize
-        |y - A x|_2^2 - nu^+ (V x -1) - (V x - 1)^+ nu
+        |y - A x|_2^2 - nu^+ (V x -1) - (V x - 1)^+ nu + 
+            h^+ x + x^+ h + mu x^+ x,
+    where the second line denotes contributions from other objective functions.
     """
     def __init__(self, A, y, V):
         assert y.ndim == 1
-        assert y.ndim == 2
+        assert A.ndim == 2
         self._Ny, self._Nx = A.shape
         self._Nc = V.shape[0]
+
         assert y.shape == (self._Ny,)
         assert V.shape == (self._Nc, self._Nx)
 
@@ -45,14 +46,14 @@ class MainLestSquaresBase(object):
         pass
 
 
-class MainLestSquares(MainLestSquaresBase):
+class MatrixLeastSquares(LeastSquaresBase):
     """
-    Main least-squares fitting problem with a dense/diagonal matrix A.
+     least-squares fitting problem with a dense/diagonal matrix A.
     """
     def __init__(self, A, y, V):
         assert type(A) in [np.ndarray, DiagonalMatrix]
         assert A.ndim == 2
-        super().__(A, y, V)
+        super().__init__(A, y, V)
 
         self._Ac = A.conjugate().T
         self._AcA = A.conjugate().T @ A
@@ -74,21 +75,26 @@ class MainLestSquares(MainLestSquaresBase):
         """
         Return new x
         """
-        return self._get_B(mu) @ (self._Ac @ self._y - self._h)
+        return self._get_B(mu) @ (self._Ac @ self._y - h)
 
     def solve_for_nu(self, y, nu, h, mu):
         """
         Return new nu
         """
+        assert y.shape == (self._Ny,)
+        assert nu.shape == (self._Nc,)
+        assert h.shape == (self._Nx,)
+
         B = self._get_B(mu)
         xi1 = B @ (self._Ac @ y - h + self._V.conjugate().T @ nu)
-        xi2 = B @ self._V
-        return np.inv(self._V @ xi2) @ (np.identity(self._Nc) - self._V @ xi1)
+        xi2 = B @ self._V.T.conjugate()
+        new_nu = _inv(self._V @ xi2) @ (np.identity(self._Nc) - self._V @ xi1)
+        return new_nu.reshape(self._Nc)
 
 
-class SparseMainLestSquares(MainLestSquaresBase):
+class SparseLeastSquares(LeastSquaresBase):
     """
-    Main least-squares fitting problem with a sparse matrix A
+    Least-squares fitting problem with a sparse matrix A
     """
     pass
 
@@ -103,7 +109,7 @@ class DiagonalMatrix(object):
 def _inv(A):
     """ Compute inverse of a matrix A"""
     if isinstance(A, np.ndarray):
-        return np.inv(A)
+        return np.linalg.inv(A)
     elif isinstance(A, DiagonalMatrix):
         return DiagonalMatrix(1/A.diagonals)
     else:
