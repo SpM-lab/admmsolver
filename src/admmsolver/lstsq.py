@@ -30,12 +30,16 @@ class LeastSquaresBase(object):
         self._y = y
         self._V = V
     
+    def __call__(self, x):
+        """Evaluate the L2 loss part of th cost function"""
+        raise NotImplementedError()
+
     def solve(self, nu, h, mu):
         """
         Return new x and nu
             x <- argmin_x |y - Ax|_2^2 + h^+ x + x^+ h + mu x^+ x
         """
-        pass
+        raise NotImplementedError()
 
     @property
     def shape(self):
@@ -62,6 +66,8 @@ class MatrixLeastSquares(LeastSquaresBase):
         # B = (A^+ A + mu I)^{-1}
         self._B_cache = (None, None)
     
+    def __call__(self, x):
+        return np.linalg.norm(self._y - self._A @ x)**2
     
     def _get_B(self, mu):
         assert mu>=0

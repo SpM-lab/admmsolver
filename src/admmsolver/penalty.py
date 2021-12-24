@@ -7,13 +7,17 @@ class PenaltyBase(object):
     """
     def __init__(self):
         super().__init__()
+
+    def __call__(self, x):
+        """Evaluate P(x)"""
+        raise NotImplementedError()
     
     def solve(self, h, mu):
         """
         Return new x
             x <- argmin_x P(x) + h^+ x + x^+ h + mu x^+ x
         """
-        pass
+        raise NotImplementedError()
 
 
 class L1Regularizer(PenaltyBase):
@@ -25,6 +29,9 @@ class L1Regularizer(PenaltyBase):
         super().__init__()
         assert alpha > 0
         self._alpha = alpha
+    
+    def __call__(self, x):
+        return self._alpha * np.sum(np.abs(x))
 
     def solve(self, h, mu):
         """
