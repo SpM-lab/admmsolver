@@ -38,7 +38,7 @@ class LeastSquares(ObjectiveFunctionBase):
         self._AcA = A.conjugate().T @ A
         self._Nx = A.shape[1]
 
-        # B = (A^+ A + mu I)^{-1}
+        # B = (A^+ A + mu)^{-1}
         self._B_cache = (None, None)
     
     def __call__(self, x):
@@ -49,7 +49,7 @@ class LeastSquares(ObjectiveFunctionBase):
         if self._B_cache[0] != hash_:
             self._B_cache = (
                 hash_,
-                inv(self._alpha * self._AcA + mu * np.identity(self._Nx))
+                inv(self._alpha * self._AcA + mu)
             )
         return self._B_cache[1]
     

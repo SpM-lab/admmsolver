@@ -32,8 +32,7 @@ class DiagonalMatrix(object):
 def matrix_hash(a):
     """ Compute hash of a matrix a"""
     if isinstance(a, np.ndarray):
-        a.flags.writeable = False
-        return hash(a.data)
+        return hash(a.data.tobytes()) # This makes a copy
     elif isinstance(a, DiagonalMatrix):
         return matrix_hash(a.diagonals)
     else:
