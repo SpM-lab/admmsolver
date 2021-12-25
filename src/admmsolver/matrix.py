@@ -2,9 +2,13 @@
 import numpy as np
 
 class DiagonalMatrix(object):
+    """
+    Diagonal matrix
+    """
     def __init__(self, diagonals):
         assert diagonals.ndim == 1
         self._diagonals = diagonals
+        self.shape = (diagonals.size, diagonals.size)
     
     @property
     def diagonals(self):

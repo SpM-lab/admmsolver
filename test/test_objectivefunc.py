@@ -45,3 +45,45 @@ def test_least_squares():
 
     np.testing.assert_allclose(x, x_ref, rtol=1e-8)
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
+
+
+def test_constrained_least_squares():
+    np.random.seed(100)
+
+    N1, N2 = 8, 4
+    Nc = 2
+    alpha = 2.0
+    y = _randn_cmplx(N1)
+    A = _randn_cmplx(N1, N2)
+    h = _randn_cmplx(N2)
+    C = _randn_cmplx(Nc, N2)
+    D = _randn_cmplx(Nc)
+    sqrt_mu = _randn_cmplx(N2, N2)
+    mu = sqrt_mu.T.conjugate() @ sqrt_mu
+    lstsq = ConstrainedLeastSquares(alpha, A, y, C, D)
+
+    x = lstsq.solve(h, mu)
+    assert np.abs(C@x - D).max() < 1e-10
+    
+    #FIXME: how to check x?
+
+
+def test_L1():
+    """
+    Minimize alpha * |x|_1 + h^+ x + x^+ h + mu x^+ x
+    """
+    N = 20
+    assert N%2 == 0
+    h = 0.5*np.arange(-N//2, N//2)
+    mu = 1.0
+    alpha = 1.0
+
+    l1 = L1Regularizer(alpha)
+    x = l1.solve(h, mu)
+    
+    # Naive optimization
+    for i in range(N):
+        f = lambda x: alpha * np.abs(x) + 2*h[i]*x + mu * x**2
+        x0 = 0.0
+        res = minimize(f, x0, method="BFGS")
+        assert np.abs(x[i]-res.x[0]) < 1e-5
