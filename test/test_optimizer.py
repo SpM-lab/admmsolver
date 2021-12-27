@@ -3,7 +3,7 @@ from scipy.optimize import minimize
 from scipy.optimize._trustregion_constr.equality_constrained_sqp import equality_constrained_sqp
 
 from admmsolver.objectivefunc import LeastSquares, L1Regularizer
-from admmsolver.optimizer import SimpleOptimizer
+from admmsolver.optimizer import SimpleOptimizer, Problem
 from admmsolver.matrix import identity
 
 def test_LASSO():
@@ -34,9 +34,11 @@ def test_LASSO():
     lstsq = LeastSquares(1.0, A, y)
     l1 = L1Regularizer(alpha, A.shape[1])
     equality_conditions = [
-       (1, 0, identity(2), identity(2), 1.0, None)
+       (1, 0, identity(2), identity(2))
     ]
-    opt = SimpleOptimizer([lstsq, l1], equality_conditions)
+    p = Problem([lstsq, l1], equality_conditions)
+    print("debug", p.E)
+    opt = SimpleOptimizer(p)
 
     assert np.abs(opt(x_ref) - f(x_ref)) < 1e-10
     opt.solve(100)
@@ -66,9 +68,10 @@ def test_basis_pursuit():
     lstsq = LeastSquares(1.0, A, y_calc)
     l1 = L1Regularizer(1e-1, A.shape[1])
     equality_conditions = [
-      (1, 0, identity(N), identity(N), 1.0, None)
+      (1, 0, identity(N), identity(N))
     ]
-    opt = SimpleOptimizer([lstsq, l1], equality_conditions)
+    p = Problem([lstsq, l1], equality_conditions)
+    opt = SimpleOptimizer(p)
 
     niter = 100
     opt.solve(niter)

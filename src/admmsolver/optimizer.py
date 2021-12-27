@@ -2,80 +2,104 @@ import numpy as np
 
 from .objectivefunc import ObjectiveFunctionBase
 from .matrix import matmul
+from itertools import product
 
-class SimpleOptimizer:
-    """
-    The simplest ADMM solver
-    """
-    def __init__(self, functions, equality_conditons=[], x0=None):
+class Problem(object):
+    def __init__(self, functions, equality_conditons=[]):
         for f in functions:
             isinstance(f, ObjectiveFunctionBase)
         self._functions = functions
         self._num_func = len(functions)
-        self._equal_cond = np.full((self._num_func, self._num_func), None)
-        self._h = np.full((self._num_func, self._num_func), None)
         self._E = np.full((self._num_func, self._num_func), None)
-        self._mu = np.full((self._num_func, self._num_func), 0.0)
 
-        if x0 is not None:
-            self._x = [x_.copy() for x_ in x0]
-        else:
-            self._x = [np.zeros(self._functions[k].size_x, dtype=np.complex128)
-               for k in range(self._num_func)]
-        
         for e in equality_conditons:
-            assert len(e) == 6
+            assert len(e) == 4
             self._add_equality_condition(*e)
+
+    @property
+    def functions(self):
+        return self._functions
     
     @property
-    def x(self):
-        return self._x
+    def num_func(self):
+        return self._num_func
     
-    def _add_equality_condition(self, i, j, Eji, Eij, mu, h0=None):
+    @property
+    def E(self):
+        """ E_{ij} """
+        return self._E
+
+    def _add_equality_condition(self, i, j, Eji, Eij):
         """
         Add an equality condition
 
         i > j
         """
         assert i > j, "i <= j!"
-        assert mu > 0, "mu must be positive!"
-        if self._equal_cond[i,j] is not None:
+        if self._E[i,j] is not None:
             raise RuntimeError("Duplicate entries in equality_conditions")
-
         self._E[i,j] = Eij
         self._E[j,i] = Eji
-        self._mu[i,j] = mu
-        if h0 is None:
-            self._h[i,j] = np.zeros(Eij.shape[0], dtype=np.complex128)
+
+
+class SimpleOptimizer(object):
+    """
+    The simplest ADMM solver
+    """
+    def __init__(self, problem, x0=None, mu=None):
+        num_func = problem.num_func
+        self._h = np.full((num_func, num_func), None)
+        self._mu = np.full((num_func, num_func), 0.0)
+        self._problem = problem
+
+        if x0 is not None:
+            self._x = [x_.copy() for x_ in x0]
         else:
-            self._h[i,j] = h0.copy()
+            self._x = [np.zeros(problem.functions[k].size_x, dtype=np.complex128)
+               for k in range(num_func)]
+        
+        if mu is None:
+            mu = 1.0
+        for i, j in product(range(num_func), repeat=2):
+            if problem.E[i,j] is None or i <= j:
+                continue
+            self._h[i,j] = np.zeros(problem.E[i,j].shape[0], dtype=np.complex128)
+            self._mu[i,j] = mu
+
+    
+    @property
+    def x(self):
+        return self._x
+    
     
     def __call__(self, x):
         """Evaluate the cost function"""
-        return np.sum([f(x) for f in self._functions])
+        return np.sum([f(x) for f in self._problem.functions])
     
     def _hk(self, k):
         """ Compute `h` for optimizing `x_k` """
         res = []
+
+        E = self._problem.E
 
         # i < k
         for i in range(k):
             if self._h[k,i] is None:
                 continue
             res.append(
-                matmul(self._h[k,i].T.conjugate(), self._E[i,k])
-                - self._mu[k,i] * (self._E[i,k].T.conjugate()@self._E[k,i]) @ self._x[i]
+                matmul(self._h[k,i].T.conjugate(), E[i,k])
+                - self._mu[k,i] * (E[i,k].T.conjugate()@E[k,i]) @ self._x[i]
                 )
 
         # k < i
-        for i in range(k+1, self._num_func):
+        for i in range(k+1, self._problem.num_func):
             if self._h[i,k] is None:
                 continue
             res.append(
-                -matmul(self._h[i,k].T.conjugate(), self._E[i,k])
+                -matmul(self._h[i,k].T.conjugate(), E[i,k])
                 -self._mu[i,k] *
                     matmul(
-                        matmul(self._E[i,k].T.conjugate(), self._E[k,i]),
+                        matmul(E[i,k].T.conjugate(), E[k,i]),
                         self._x[i]
                     )
                 )
@@ -88,18 +112,21 @@ class SimpleOptimizer:
 
     def _mu_k(self, k):
         """ Compute `mu` for optimizing `x_k` """
+
+        E = self._problem.E
+
         res = []
         # i < k
         for i in range(k):
             if self._h[k,i] is None:
                 continue
-            res.append(self._mu[k,i] * self._E[i,k].T.conjugate() @ self._E[i,k])
+            res.append(self._mu[k,i] * E[i,k].T.conjugate() @ E[i,k])
 
         # k < i
-        for i in range(k+1, self._num_func):
+        for i in range(k+1, self._problem.num_func):
             if self._h[i,k] is None:
                 continue
-            res.append(self._mu[i,k] * self._E[i,k].T.conjugate() @ self._E[i,k])
+            res.append(self._mu[i,k] * E[i,k].T.conjugate() @ E[i,k])
         
         if len(res) > 0:
             #return np.asarray(sum(res)).reshape(2*(self.x[k].size,))
@@ -116,14 +143,14 @@ class SimpleOptimizer:
     def one_sweep(self):
         """Update all variables in a single sweep"""
         # Optimize x
-        for k in range(self._num_func):
-            self._x[k][:] = self._functions[k].solve(
+        for k in range(self._problem.num_func):
+            self._x[k][:] = self._problem.functions[k].solve(
                 self._hk(k),
                 self._mu_k(k)
             )
 
         # Optimize dual variables
-        for i in range(self._num_func):
+        for i in range(self._problem.num_func):
             for j in range(i):
                 if self._h[i,j] is not None:
                     self._h[i,j] += self._mu[i,j] * (self._x[i] - self._x[j])
