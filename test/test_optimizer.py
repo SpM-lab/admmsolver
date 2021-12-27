@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.optimize import minimize
+from scipy.optimize._trustregion_constr.equality_constrained_sqp import equality_constrained_sqp
 
-from admmsolver.lstsq import MatrixLeastSquares
-from admmsolver.penalty import L1Regularizer
+from admmsolver.objectivefunc import LeastSquares, L1Regularizer
 from admmsolver.optimizer import SimpleOptimizer
+from admmsolver.matrix import identity
 
 def test_LASSO():
     """
@@ -14,26 +15,33 @@ def test_LASSO():
        alpha = 0.1
       
     The solution is x \simeq (1, 0).
+
+    This problem can be solved by minimizing
+       |y - A * x0|^2 + alpha |x1|_1
+    subject to x0 - x1 = 0.
     """
     y = np.array([2])
     A = np.array([[2, 1]])
     alpha = 0.1
-
-    lstsq = MatrixLeastSquares(A, y)
-    p = L1Regularizer(alpha)
 
     # Naive optimization
     f = lambda x: np.linalg.norm(y - A @ x)**2 + alpha * np.sum(np.abs(x))
     res = minimize(f, x0=np.array([1.1,0]), method="Nelder-Mead", options={"xatol": 1e-10})
     assert res.success 
     x_ref = res.x
-    print("x_ref", x_ref)
 
-    opt = SimpleOptimizer(lstsq, [p])
+    # ADMM
+    lstsq = LeastSquares(1.0, A, y)
+    l1 = L1Regularizer(alpha, A.shape[1])
+    equality_conditions = [
+       (1, 0, identity(2), identity(2), 1.0, None)
+    ]
+    opt = SimpleOptimizer([lstsq, l1], equality_conditions)
+
     assert np.abs(opt(x_ref) - f(x_ref)) < 1e-10
-
-    x_res = opt.solve(x0=x_ref, niter=100)
-    for i in range(x_res.shape[0]):
-        np.testing.assert_allclose(x_res[i,:], x_ref, atol=1e-10)
+    opt.solve(100)
+    x_res = opt.x
+    for x in x_res:
+        np.testing.assert_allclose(x, x_ref, atol=1e-10)
 
     
