@@ -32,7 +32,6 @@ class LeastSquares(ObjectiveFunctionBase):
     alpha * ||y - A @ x||_2^2
     """
     def __init__(self, alpha, A, y):
-        assert type(A) in [np.ndarray]
         assert A.ndim == 2
         super().__init__(A.shape[1])
 
@@ -60,6 +59,10 @@ class LeastSquares(ObjectiveFunctionBase):
         return self._B_cache[1]
     
     def solve(self, h, mu):
+        if h is None:
+            h = np.zeros(self._Nx)
+        if mu is None:
+            mu = DiagonalMatrix(np.zeros(self._Nx))
         assert h.shape == (self._Nx,)
         assert mu.shape == (self._Nx, self._Nx)
         return self._get_B(mu) @ (self._alpha * self._Ac @ self._y - h)
@@ -114,6 +117,37 @@ class L1Regularizer(ObjectiveFunctionBase):
             h = h.real
         return _softmax(-h/mu.diagonals, 0.5*self._alpha/mu.diagonals)
 
+
+class NonNegativePenalty(ObjectiveFunctionBase):
+    """
+    Non-negative penalty term
+        F(x) = infty * Theta(-x)
+    """
+    def __init__(self, size_x):
+        super().__init__(size_x)
+    
+    def __call__(self, x):
+        return self._alpha * np.sum(np.abs(x))
+
+    def solve(self, h, mu):
+        """
+        x <- argmin_x alpha * |x|_1 + h^+ x + x^+ h + mu x^+ x
+
+        This function works only if all the following conditions are met:
+          * h and x are real vectors
+          * mu is a diagonal matrix
+        Return a real vector.
+        """
+        assert isinstance(mu, DiagonalMatrix)
+        if np.iscomplexobj(h):
+            h = h.real
+        return _project_plus(-h/mu.diagonals)
+ 
+
+def _project_plus(x):
+    res = x.copy()
+    res[x < 0] = 0
+    return res
 
 def _softmax(y, lambda_):
     """

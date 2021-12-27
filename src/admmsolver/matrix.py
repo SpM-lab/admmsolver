@@ -8,6 +8,7 @@ class DiagonalMatrix(object):
     def __init__(self, diagonals):
         assert diagonals.ndim == 1
         self._diagonals = diagonals
+        self.ndim = 2
         self.shape = (diagonals.size, diagonals.size)
     
     @property

@@ -88,3 +88,23 @@ def test_L1():
         x0 = 0.0
         res = minimize(f, x0, method="BFGS")
         assert np.abs(x[i]-res.x[0]) < 1e-5
+
+def test_non_negative():
+    """
+    Minimize infty * Theta(-x) + h^+ x + x^+ h + mu x^+ x
+    """
+    h = np.array([0, -10, 10])
+    N = h.size
+    mu = identity(N)
+
+    func = NonNegativePenalty(N)
+    x = func.solve(h, mu)
+
+    step_f = lambda x: x if x >= 0 else 0
+
+    # Naive optimization
+    for i in range(N):
+        f = lambda x: 1e+5 * step_f(-x) + 2*h[i]*x + mu.diagonals[i] * x**2
+        x0 = 0.0
+        res = minimize(f, x0, method="BFGS")
+        assert np.abs(x[i]-res.x[0]) < 1e-5
