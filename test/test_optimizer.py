@@ -37,7 +37,6 @@ def test_LASSO():
        (1, 0, identity(2), identity(2))
     ]
     p = Problem([lstsq, l1], equality_conditions)
-    print("debug", p.E)
     opt = SimpleOptimizer(p)
 
     assert np.abs(opt(x_ref) - f(x_ref)) < 1e-10

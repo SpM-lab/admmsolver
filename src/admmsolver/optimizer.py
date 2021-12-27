@@ -6,6 +6,14 @@ from itertools import product
 
 class Problem(object):
     def __init__(self, functions, equality_conditons=[]):
+        """
+        functions: list of instances of subclasses of ObjectiveFunctionBase
+            Define the cost function as the sum of the given functions.
+
+        equality_conditions: list of tuple of (int, int, 2d array, 2d array)
+            Each entry denotes (i, j, Eji, Eij).
+            The equality condition is E_ji x_i = E_ji x_j.
+        """
         for f in functions:
             isinstance(f, ObjectiveFunctionBase)
         self._functions = functions
@@ -32,10 +40,9 @@ class Problem(object):
     def _add_equality_condition(self, i, j, Eji, Eij):
         """
         Add an equality condition
-
-        i > j
+        E_{ij} x_i = E_{ji} x_j
         """
-        assert i > j, "i <= j!"
+        assert i != j, "i != j!"
         if self._E[i,j] is not None:
             raise RuntimeError("Duplicate entries in equality_conditions")
         self._E[i,j] = Eij
@@ -47,6 +54,16 @@ class SimpleOptimizer(object):
     The simplest ADMM solver
     """
     def __init__(self, problem, x0=None, mu=None):
+        """
+        problem: Problem instance
+           Problem to be solved.
+
+        x0: None or list of 1D array
+           Initial guesses for variables `x_i`
+        
+        mu: float
+           Penalty term
+        """
         num_func = problem.num_func
         self._h = np.full((num_func, num_func), None)
         self._mu = np.full((num_func, num_func), 0.0)
