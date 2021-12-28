@@ -47,7 +47,7 @@ class DiagonalMatrix(object):
 
     def __iadd__(self, other):
         if isinstance(other, DiagonalMatrix):
-            self.diagonals += other.diagonals
+            self._diagonals += other.diagonals
         else:
             return NotImplemented
     
@@ -102,7 +102,7 @@ def inv(a):
     elif isinstance(a, DiagonalMatrix):
         return DiagonalMatrix(1/a.diagonals)
     else:
-        raise ValueError("Invalid value of A!")
+        raise ValueError(f"Invalid type{type(a)} of a!")
 
 def diagonal(a):
     """ Return diagonal elements as a 1D array """

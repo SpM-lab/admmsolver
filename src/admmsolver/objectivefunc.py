@@ -51,7 +51,7 @@ class LeastSquares(ObjectiveFunctionBase):
     def _get_B(self, mu):
         hash_ = matrix_hash(mu)
         if self._B_cache[0] != hash_:
-            x = self._alpha * self._AcA
+            #x = self._alpha * self._AcA
             self._B_cache = (
                 hash_,
                 inv(add(self._alpha * self._AcA, mu))
@@ -115,6 +115,9 @@ class L1Regularizer(ObjectiveFunctionBase):
         assert isinstance(mu, DiagonalMatrix)
         if np.iscomplexobj(h):
             h = h.real
+        #print("debug0", -h/mu.diagonals)
+        #print("debug1", 0.5*self._alpha/mu.diagonals)
+        #print("debug2", _softmax(-h/mu.diagonals, 0.5*self._alpha/mu.diagonals))
         return _softmax(-h/mu.diagonals, 0.5*self._alpha/mu.diagonals)
 
 

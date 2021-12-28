@@ -43,6 +43,9 @@ class Problem(object):
         E_{ij} x_i = E_{ji} x_j
         """
         assert i != j, "i != j!"
+        assert Eij.shape[0] == Eji.shape[0], "Leading dimensions of Eij and Eij do not match!"
+        assert Eij.shape[1] == self._functions[j].size_x
+        assert Eji.shape[1] == self._functions[i].size_x
         if self._E[i,j] is not None:
             raise RuntimeError("Duplicate entries in equality_conditions")
         self._E[i,j] = Eij
@@ -170,7 +173,10 @@ class SimpleOptimizer(object):
         for i in range(self._problem.num_func):
             for j in range(i):
                 if self._h[i,j] is not None:
-                    self._h[i,j] += self._mu[i,j] * (self._x[i] - self._x[j])
+                    self._h[i,j] += self._mu[i,j] * (
+                        matmul(self._problem.E[j,i], self._x[i]) -
+                        matmul(self._problem.E[i,j], self._x[j])
+                    )
 
 
 def _sum(objs):

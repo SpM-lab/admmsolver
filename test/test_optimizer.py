@@ -4,7 +4,7 @@ from scipy.optimize._trustregion_constr.equality_constrained_sqp import equality
 
 from admmsolver.objectivefunc import LeastSquares, L1Regularizer
 from admmsolver.optimizer import SimpleOptimizer, Problem
-from admmsolver.matrix import identity
+from admmsolver.matrix import identity, DiagonalMatrix
 
 def test_LASSO():
     """
@@ -76,3 +76,14 @@ def test_basis_pursuit():
     opt.solve(niter)
 
     np.testing.assert_allclose(opt.x[0], xanswer, atol=1e-2*np.abs(xanswer).max(), rtol=0)
+   
+def test_ill_conditioned():
+    y = np.array([1, 1e-5])
+    A = DiagonalMatrix(np.array([1, 1e-5]))
+    lstsq = LeastSquares(1.0, A, y)
+    nn = NonNegativePenalty(basis.size)
+    equality_conditions = [
+      (0, 1, identity(basis.size), identity(basis.size)),
+      #(0, 2, identity(basis.size), identity(basis.size))
+]
+problem = Problem([lstsq, nn], equality_conditions)
