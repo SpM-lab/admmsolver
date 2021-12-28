@@ -85,6 +85,9 @@ class SimpleOptimizer(object):
                 continue
             self._h[i,j] = np.zeros(problem.E[i,j].shape[0], dtype=np.complex128)
             self._mu[i,j] = mu
+        
+        self._primal_residual = []
+        self._dual_residual = []
 
     
     @property
@@ -153,15 +156,75 @@ class SimpleOptimizer(object):
             return _sum(res)
         else:
             return None
+    
+    def residual(self):
+        """ Compute primal residual and dual residual"""
+        num_func = self._problem.num_func
+        primal = 0.0
+        dual = 0.0
+        for i, j in product(range(num_func), repeat=2):
+            if self._problem.E[i,j] is None or i <= j:
+                continue
+            primal += \
+                np.linalg.norm(
+                    matmul(self._problem.E[i,j], self._x[j]) - 
+                       matmul(self._problem.E[j,i], self._x[i])
+                )
+            dual += \
+                np.linalg.norm(
+                    self._mu[i,j] * matmul(
+                        self._problem.E[j,i],
+                        matmul(
+                            self._problem.E[i,j],
+                            self._x[j] - self._x_old[j]
+                        )
+                    )
+                )
+        return primal, dual
 
-    def solve(self, niter=10000, callback=None):
+
+    def update_mu(self, fact_incr=2, th_change=10):
+        """ Compute primal residual and dual residual"""
+        num_func = self._problem.num_func
+        for i, j in product(range(num_func), repeat=2):
+            if self._problem.E[i,j] is None or i <= j:
+                continue
+            primal = \
+                np.linalg.norm(
+                    matmul(self._problem.E[i,j], self._x[j]) - 
+                       matmul(self._problem.E[j,i], self._x[i])
+                )
+            dual = \
+                np.linalg.norm(
+                    self._mu[i,j] * matmul(
+                        self._problem.E[j,i],
+                        matmul(
+                            self._problem.E[i,j],
+                            self._x[j] - self._x_old[j]
+                        )
+                    )
+                )
+            if primal > th_change * dual:
+                self._mu[i,j] *= fact_incr
+            if dual > th_change * primal:
+                self._mu[i,j] /= fact_incr
+        
+
+    def solve(self, niter=10000, callback=None, interval_update_mu=100):
         for iter in range(niter):
             self.one_sweep()
+            primal, dual = self.residual()
+            self._primal_residual.append(primal)
+            self._dual_residual.append(dual)
             if callback is not None:
                 callback()
+            if iter % interval_update_mu == 0:
+                self.update_mu()
 
     def one_sweep(self):
         """Update all variables in a single sweep"""
+        self._x_old = [x_.copy() for x_ in self._x]
+
         # Optimize x
         for k in range(self._problem.num_func):
             self._x[k][:] = self._problem.functions[k].solve(

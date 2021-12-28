@@ -73,7 +73,6 @@ class ConstrainedLeastSquares(LeastSquares):
     alpha * ||y - A @ x||_2^2 + \infty * ||C@x - D||_2^2 = 0
     """
     def __init__(self, alpha, A, y, C, D):
-        assert type(A) in [np.ndarray]
         assert A.ndim == 2
         super().__init__(alpha, A, y)
 
