@@ -152,7 +152,6 @@ class SimpleOptimizer(object):
             res.append(self._mu[i,k] * E[i,k].T.conjugate() @ E[i,k])
         
         if len(res) > 0:
-            #return np.asarray(sum(res)).reshape(2*(self.x[k].size,))
             return _sum(res)
         else:
             return None
@@ -184,7 +183,7 @@ class SimpleOptimizer(object):
 
 
     def update_mu(self, fact_incr=2, th_change=10):
-        """ Compute primal residual and dual residual"""
+        """ Update mu based on primal residual and dual residual"""
         num_func = self._problem.num_func
         for i, j in product(range(num_func), repeat=2):
             if self._problem.E[i,j] is None or i <= j:

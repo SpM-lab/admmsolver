@@ -1,5 +1,5 @@
 import numpy as np
-from .matrix import DiagonalMatrix, inv, matrix_hash, diagonal, add
+from .matrix import DiagonalMatrix, inv, matrix_hash, diagonal, add, matmul
 
 class ObjectiveFunctionBase(object):
     """
@@ -114,10 +114,44 @@ class L1Regularizer(ObjectiveFunctionBase):
         assert isinstance(mu, DiagonalMatrix)
         if np.iscomplexobj(h):
             h = h.real
-        #print("debug0", -h/mu.diagonals)
-        #print("debug1", 0.5*self._alpha/mu.diagonals)
-        #print("debug2", _softmax(-h/mu.diagonals, 0.5*self._alpha/mu.diagonals))
         return _softmax(-h/mu.diagonals, 0.5*self._alpha/mu.diagonals)
+
+
+class L2Regularizer(ObjectiveFunctionBase):
+    """
+    L2 regularization
+        F(x) = alpha * |A x|_2^2
+    """
+    def __init__(self, alpha, A):
+        super().__init__(A.shape[1])
+        assert alpha > 0
+        self._alpha = alpha
+        self._A = A
+        self._AcA = matmul(A.conjugate().T, A)
+
+        # B = (A^+ A + mu)^{-1}
+        self._B_cache = (None, None)
+    
+    def __call__(self, x):
+        return self._alpha * np.linalg.norm(matmul(self._A, x))**2
+    
+    def _get_B(self, mu):
+        hash_ = matrix_hash(mu)
+        if self._B_cache[0] != hash_:
+            self._B_cache = (
+                hash_,
+                inv(add(self._alpha * self._AcA, mu))
+            )
+        return self._B_cache[1]
+
+    def solve(self, h, mu):
+        """
+        x <- argmin_x alpha * x^+ (A^+ A) x + h^+ x + x^+ h + x^+ mu x
+          = - (alpha A^+ A + mu)^{-1} h
+
+        """
+        return matmul(self._get_B(mu), -h)
+
 
 
 class NonNegativePenalty(ObjectiveFunctionBase):
@@ -144,6 +178,7 @@ class NonNegativePenalty(ObjectiveFunctionBase):
         if np.iscomplexobj(h):
             h = h.real
         return _project_plus(-h/mu.diagonals)
+
  
 
 def _project_plus(x):

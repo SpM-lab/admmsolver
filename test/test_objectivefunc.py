@@ -108,3 +108,25 @@ def test_non_negative():
         x0 = 0.0
         res = minimize(f, x0, method="BFGS")
         assert np.abs(x[i]-res.x[0]) < 1e-5
+
+
+def test_L2():
+    """
+    Minimize alpha * |A x|_2^2 + h^+ x + x^+ h + mu x^+ x
+    """
+    N = 10
+    M = 5
+    sqrt_mu = _randn_cmplx(N, N)
+    mu = sqrt_mu.T.conjugate() @ sqrt_mu
+    alpha = 2.0
+    A = _randn_cmplx(M, N)
+    h = _randn_cmplx(N)
+
+    l2 = L2Regularizer(alpha, A)
+    x = l2.solve(h, mu)
+    
+    # Naive optimization
+    f = lambda x: alpha * np.linalg.norm(A @ x)**2 + \
+        2*np.real(h.conjugate().T @ x) + np.real(x.conjugate().T @ mu @ x)
+    x_ref = _minimize(f, x, method="BFGS")
+    np.testing.assert_allclose(x, x_ref, atol=np.abs(x_ref).max()*1e-5, rtol=0)

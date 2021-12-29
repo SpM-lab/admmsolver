@@ -48,6 +48,7 @@ class DiagonalMatrix(object):
     def __iadd__(self, other):
         if isinstance(other, DiagonalMatrix):
             self._diagonals += other.diagonals
+            return self
         else:
             return NotImplemented
     
