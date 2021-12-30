@@ -130,3 +130,21 @@ def test_L2():
         2*np.real(h.conjugate().T @ x) + np.real(x.conjugate().T @ mu @ x)
     x_ref = _minimize(f, x, method="BFGS")
     np.testing.assert_allclose(x, x_ref, atol=np.abs(x_ref).max()*1e-5, rtol=0)
+
+
+def test_semi_positive_definite_penalty():
+    np.random.seed(100)
+    K = 20
+    N = 10
+
+    h = _randn_cmplx(N**2 * K)
+    mu = identity(N**2 * K)
+
+    p = SemiPositiveDefinitePenalty((N,N,K), axis=2)
+    res = p.solve(h, mu)
+
+    x = res.reshape((N,N,K))
+    for k in range(K):
+        evals, evecs = np.linalg.eigh(x[:,:,k])
+        assert all(evals > -1e-10)
+

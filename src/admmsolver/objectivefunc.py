@@ -163,12 +163,10 @@ class NonNegativePenalty(ObjectiveFunctionBase):
         super().__init__(size_x)
     
     def __call__(self, x):
-        return self._alpha * np.sum(np.abs(x))
+        return 0.0
 
     def solve(self, h, mu):
         """
-        x <- argmin_x alpha * |x|_1 + h^+ x + x^+ h + mu x^+ x
-
         This function works only if all the following conditions are met:
           * h and x are real vectors
           * mu is a diagonal matrix
@@ -179,6 +177,38 @@ class NonNegativePenalty(ObjectiveFunctionBase):
             h = h.real
         return _project_plus(-h/mu.diagonals)
 
+
+class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
+    """
+    Penalty term for negative eigenvalues of x
+
+    1) Reshape x into a three-way tensor
+    2) Along a given axis, we compute eigenvalues and remove negative ones (we assume hermition matrices).
+    """
+    def __init__(self, shape_x, axis):
+        assert len(shape_x) == 3
+        super().__init__(np.prod(shape_x))
+        self._shape_x = shape_x
+        self._axis = axis
+    
+    def __call__(self, x):
+        return 0.0
+
+    def solve(self, h, mu):
+        """
+        This function works only if mu is a diagonal matrix
+        """
+        assert isinstance(mu, DiagonalMatrix)
+        if np.iscomplexobj(h):
+            h = h.real
+        x_ = (-h/mu.diagonals).reshape(self._shape_x)
+        x_ = np.moveaxis(x_, self._axis, 0)
+        for i in range(x_.shape[0]):
+            evals, evecs = np.linalg.eigh(x_[i,:,:])
+            idx = evals >= 0
+            U = evecs[:, idx]
+            x_[i,:,:] = U @ (evals[idx,None] * U.conjugate().T)
+        return np.moveaxis(x_, 0, self._axis).ravel()
  
 
 def _project_plus(x):
