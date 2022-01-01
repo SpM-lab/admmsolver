@@ -55,7 +55,8 @@ setup(
         'scipy'
     ],
     extras_require={
-        'test': ['pytest'],
+        'test': ['pytest', 'mypy'],
+        'dev': ['pytest', 'mypy']
         },
 
     package_dir={'': 'src'},

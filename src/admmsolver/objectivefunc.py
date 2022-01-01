@@ -1,23 +1,26 @@
 import numpy as np
-from .matrix import DiagonalMatrix, inv, matrix_hash, diagonal, add, matmul
+from .matrix import DiagonalMatrix, inv, matrix_hash, add, matmul
+from typing import Union
 
 class ObjectiveFunctionBase(object):
     """
     Base class for objective function F(x)
     """
-    def __init__(self, size_x):
+    def __init__(self, size_x: int) -> None:
         super().__init__()
         self._size_x = size_x
     
     @property
-    def size_x(self):
+    def size_x(self) -> int:
         return self._size_x
 
-    def __call__(self, x):
+    def __call__(self, x: np.ndarray) -> float:
         """Evaluate F(x)"""
         raise NotImplementedError()
     
-    def solve(self, h, mu):
+    def solve(self,
+        h: Union[np.ndarray,None],
+        mu: Union[np.ndarray,DiagonalMatrix,None]) -> np.ndarray:
         """
         Return argmin_x F(x) + h^+ x + x^+ h + x^+ mu x
 
