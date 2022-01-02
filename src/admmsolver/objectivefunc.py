@@ -1,6 +1,6 @@
 import numpy as np
 from .matrix import DiagonalMatrix, inv, matrix_hash, add, matmul
-from typing import Union
+from typing import Union, Optional
 
 class ObjectiveFunctionBase(object):
     """
@@ -34,7 +34,7 @@ class LeastSquares(ObjectiveFunctionBase):
     """
     alpha * ||y - A @ x||_2^2
     """
-    def __init__(self, alpha, A, y):
+    def __init__(self, alpha: float, A: Union[np.ndarray, DiagonalMatrix], y: np.ndarray) -> None:
         assert A.ndim == 2
         super().__init__(A.shape[1])
 
@@ -48,20 +48,19 @@ class LeastSquares(ObjectiveFunctionBase):
         # B = (A^+ A + mu)^{-1}
         self._B_cache = (None, None)
     
-    def __call__(self, x):
+    def __call__(self, x: np.ndarray) -> float:
         return self._alpha * np.linalg.norm(self._y - self._A @ x)**2
     
-    def _get_B(self, mu):
+    def _get_B(self, mu: Union[np.ndarray, DiagonalMatrix]) -> Union[np.ndarray, DiagonalMatrix]:
         hash_ = matrix_hash(mu)
         if self._B_cache[0] != hash_:
-            #x = self._alpha * self._AcA
             self._B_cache = (
                 hash_,
                 inv(add(self._alpha * self._AcA, mu))
             )
         return self._B_cache[1]
     
-    def solve(self, h, mu):
+    def solve(self, h: Optional[np.ndarray], mu: Union[None, np.ndarray, DiagonalMatrix]) -> np.ndarray:
         if h is None:
             h = np.zeros(self._Nx)
         if mu is None:
@@ -75,14 +74,19 @@ class ConstrainedLeastSquares(LeastSquares):
     """
     alpha * ||y - A @ x||_2^2 + \infty * ||C@x - D||_2^2 = 0
     """
-    def __init__(self, alpha, A, y, C, D):
+    def __init__(self,
+        alpha: float,
+        A: Union[np.ndarray, DiagonalMatrix],
+        y: np.ndarray,
+        C: Union[np.ndarray, DiagonalMatrix],
+        D: Union[np.ndarray, DiagonalMatrix]):
         assert A.ndim == 2
         super().__init__(alpha, A, y)
 
         self._C = C
         self._D = D
 
-    def solve(self, h, mu):
+    def solve(self, h: Optional[np.ndarray], mu: Optional[np.ndarray]) -> np.ndarray:
         assert h.shape == (self._Nx,)
         assert mu.shape == (self._Nx, self._Nx)
         B =  self._get_B(mu)
@@ -97,15 +101,15 @@ class L1Regularizer(ObjectiveFunctionBase):
     L1 regularization
         F(x) = alpha * |x|_1
     """
-    def __init__(self, alpha, size_x):
+    def __init__(self, alpha, size_x) -> None:
         super().__init__(size_x)
         assert alpha > 0
         self._alpha = alpha
     
-    def __call__(self, x):
+    def __call__(self, x) -> float:
         return self._alpha * np.sum(np.abs(x))
 
-    def solve(self, h, mu):
+    def solve(self, h, mu) -> np.ndarray:
         """
         x <- argmin_x alpha * |x|_1 + h^+ x + x^+ h + mu x^+ x
 
@@ -125,7 +129,7 @@ class L2Regularizer(ObjectiveFunctionBase):
     L2 regularization
         F(x) = alpha * |A x|_2^2
     """
-    def __init__(self, alpha, A):
+    def __init__(self, alpha: float, A: np.ndarray):
         super().__init__(A.shape[1])
         assert alpha > 0
         self._alpha = alpha
@@ -135,10 +139,10 @@ class L2Regularizer(ObjectiveFunctionBase):
         # B = (A^+ A + mu)^{-1}
         self._B_cache = (None, None)
     
-    def __call__(self, x):
+    def __call__(self, x: np.ndarray):
         return self._alpha * np.linalg.norm(matmul(self._A, x))**2
     
-    def _get_B(self, mu):
+    def _get_B(self, mu: Union[np.ndarray, DiagonalMatrix]):
         hash_ = matrix_hash(mu)
         if self._B_cache[0] != hash_:
             self._B_cache = (
@@ -147,7 +151,9 @@ class L2Regularizer(ObjectiveFunctionBase):
             )
         return self._B_cache[1]
 
-    def solve(self, h, mu):
+    def solve(self,
+        h: Optional[np.ndarray],
+        mu: Union[None, np.ndarray, DiagonalMatrix]):
         """
         x <- argmin_x alpha * x^+ (A^+ A) x + h^+ x + x^+ h + x^+ mu x
           = - (alpha A^+ A + mu)^{-1} h
@@ -162,20 +168,19 @@ class NonNegativePenalty(ObjectiveFunctionBase):
     Non-negative penalty term
         F(x) = infty * Theta(-x)
     """
-    def __init__(self, size_x):
+    def __init__(self, size_x: int):
         super().__init__(size_x)
     
-    def __call__(self, x):
+    def __call__(self, x: np.ndarray):
         return 0.0
 
-    def solve(self, h, mu):
+    def solve(self, h: np.ndarray, mu: DiagonalMatrix):
         """
         This function works only if all the following conditions are met:
           * h and x are real vectors
           * mu is a diagonal matrix
         Return a real vector.
         """
-        assert isinstance(mu, DiagonalMatrix)
         if np.iscomplexobj(h):
             h = h.real
         return _project_plus(-h/mu.diagonals)
@@ -188,23 +193,22 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
     1) Reshape x into a three-way tensor
     2) Along a given axis, we compute eigenvalues and remove negative ones (we assume hermition matrices).
     """
-    def __init__(self, shape_x, axis):
-        assert len(shape_x) == 3
-        super().__init__(np.prod(shape_x))
-        self._shape_x = shape_x
+    def __init__(self, shape: np.ndarray, axis: int):
+        assert len(shape) == 3
+        super().__init__(np.prod(shape))
+        self._shape = shape
         self._axis = axis
     
-    def __call__(self, x):
+    def __call__(self, x: np.ndarray):
         return 0.0
 
-    def solve(self, h, mu):
+    def solve(self, h : np.ndarray, mu: DiagonalMatrix):
         """
         This function works only if mu is a diagonal matrix
         """
-        assert isinstance(mu, DiagonalMatrix)
         if np.iscomplexobj(h):
             h = h.real
-        x_ = (-h/mu.diagonals).reshape(self._shape_x)
+        x_ = (-h/mu.diagonals).reshape(self._shape)
         x_ = np.moveaxis(x_, self._axis, 0)
         for i in range(x_.shape[0]):
             evals, evecs = np.linalg.eigh(x_[i,:,:])
@@ -219,7 +223,7 @@ def _project_plus(x):
     res[x < 0] = 0
     return res
 
-def _softmax(y, lambda_):
+def _softmax(y: np.ndarray, lambda_: np.ndarray):
     """
     Softmax function
 

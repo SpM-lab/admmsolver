@@ -3,9 +3,10 @@ import numpy as np
 from .objectivefunc import ObjectiveFunctionBase
 from .matrix import matmul
 from itertools import product
+from typing import Union, Optional
 
 class Problem(object):
-    def __init__(self, functions, equality_conditons=[]):
+    def __init__(self, functions: ObjectiveFunctionBase, equality_conditons=[]) -> None:
         """
         functions: list of instances of subclasses of ObjectiveFunctionBase
             Define the cost function as the sum of the given functions.
