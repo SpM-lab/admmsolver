@@ -1,19 +1,48 @@
 import numpy as np
 
 from .objectivefunc import ObjectiveFunctionBase
-from .matrix import matmul
+from .matrix import matmul, DiagonalMatrix
 from itertools import product
-from typing import Union, Optional
+from typing import Union, Optional, List
+
+
+class EqualityCondition(object):
+    """
+    Equality condition:
+       E1 @ x_{i1} - E2 @ x_{i2} = 0,
+    where i != j.
+    """
+    def __init__(self,
+        i1: int,
+        i2: int,
+        E1: Union[np.ndarray, DiagonalMatrix],
+        E2: Union[np.ndarray, DiagonalMatrix]
+        ) -> None:
+        assert i1 != i2, "i1 != i2!"
+        assert E1.shape[0] == E2.shape[0], "Leading dimensions of E1 and E2 do not match!"
+        assert E1.ndim == 2
+        assert E2.ndim == 2
+        super().__init__()
+        self.i1 = i1
+        self.i2 = i2
+        self.E1 = E1
+        self.E2 = E2
+    
+    @property
+    def size(self):
+        return self.E1.shape[0]
 
 class Problem(object):
-    def __init__(self, functions: ObjectiveFunctionBase, equality_conditons=[]) -> None:
+    def __init__(self,
+        functions: ObjectiveFunctionBase,
+        equality_conditons: Union[tuple, List[EqualityCondition]] =[]
+        ) -> None:
         """
         functions: list of instances of subclasses of ObjectiveFunctionBase
             Define the cost function as the sum of the given functions.
 
-        equality_conditions: list of tuple of (int, int, 2d array, 2d array)
-            Each entry denotes (i, j, Eji, Eij).
-            The equality condition is E_ji x_i = E_ji x_j.
+        equality_conditions:
+            Equality conditions. Using tuples are deprecated.
         """
         for f in functions:
             isinstance(f, ObjectiveFunctionBase)
@@ -21,9 +50,13 @@ class Problem(object):
         self._num_func = len(functions)
         self._E = np.full((self._num_func, self._num_func), None)
 
+        # For backward compatibility
+        for idx_eq in range(len(equality_conditons)):
+            if isinstance(equality_conditons[idx_eq], tuple):
+                equality_conditons[idx_eq] = EqualityCondition(*equality_conditons[idx_eq])
+
         for e in equality_conditons:
-            assert len(e) == 4
-            self._add_equality_condition(*e)
+            self._add_equality_condition(e)
 
     @property
     def functions(self):
@@ -38,19 +71,16 @@ class Problem(object):
         """ E_{ij} """
         return self._E
 
-    def _add_equality_condition(self, i, j, Eji, Eij):
+    def _add_equality_condition(self, e: EqualityCondition):
         """
         Add an equality condition
-        E_{ij} x_i = E_{ji} x_j
         """
-        assert i != j, "i != j!"
-        assert Eij.shape[0] == Eji.shape[0], "Leading dimensions of Eij and Eij do not match!"
-        assert Eij.shape[1] == self._functions[j].size_x
-        assert Eji.shape[1] == self._functions[i].size_x
-        if self._E[i,j] is not None:
+        assert e.E1.shape[1] == self._functions[e.i1].size_x
+        assert e.E2.shape[1] == self._functions[e.i2].size_x
+        if self._E[e.i1, e.i2] is not None:
             raise RuntimeError("Duplicate entries in equality_conditions")
-        self._E[i,j] = Eij
-        self._E[j,i] = Eji
+        self._E[e.i1, e.i2] = e.E1
+        self._E[e.i2, e.i1] = e.E2
 
 
 class SimpleOptimizer(object):

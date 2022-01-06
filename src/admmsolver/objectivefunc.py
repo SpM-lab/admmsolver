@@ -36,6 +36,8 @@ class LeastSquares(ObjectiveFunctionBase):
     """
     def __init__(self, alpha: float, A: Union[np.ndarray, DiagonalMatrix], y: np.ndarray) -> None:
         assert A.ndim == 2
+        assert y.ndim == 1
+        assert A.shape[0] == y.size
         super().__init__(A.shape[1])
 
         self._alpha = alpha
@@ -79,8 +81,14 @@ class ConstrainedLeastSquares(LeastSquares):
         A: Union[np.ndarray, DiagonalMatrix],
         y: np.ndarray,
         C: Union[np.ndarray, DiagonalMatrix],
-        D: Union[np.ndarray, DiagonalMatrix]):
+        D: np.ndarray) -> None:
         assert A.ndim == 2
+        assert y.ndim == 1
+        assert C.ndim == 2
+        assert D.ndim == 1
+        assert A.shape[0] == y.size
+        assert A.shape[1] == C.shape[1]
+        assert C.shape[0] == D.size
         super().__init__(alpha, A, y)
 
         self._C = C
@@ -160,7 +168,6 @@ class L2Regularizer(ObjectiveFunctionBase):
 
         """
         return matmul(self._get_B(mu), -h)
-
 
 
 class NonNegativePenalty(ObjectiveFunctionBase):
