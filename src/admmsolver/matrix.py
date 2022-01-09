@@ -1,5 +1,6 @@
 
 import numpy as np
+from scipy import optimize
 
 class DiagonalMatrix(object):
     """
@@ -94,6 +95,14 @@ class PartialDiagonalMatrix(object):
         self.rest_dims = rest_dims
         self.ndim = 2
         self.shape = (matrix.shape[0]*np.prod(rest_dims), matrix.shape[1]*np.prod(rest_dims))
+    
+    def asmatrix(self):
+        return np.einsum(
+            'IJ,ij->IiJj',
+            self.matrix,
+            np.identity(np.prod(self.rest_dims)),
+            optimize=True
+        ).reshape(self.shape)
 
     @property
     def T(self):
@@ -105,12 +114,37 @@ class PartialDiagonalMatrix(object):
     def __matmul__(self, other):
         """ self @ other """
         if isinstance(other, np.ndarray):
-            return self.matvec(other)
+            r = self.matvec(other)
+            if other.ndim == 1:
+                r = r.ravel()
+            return r
         elif isinstance(other, PartialDiagonalMatrix):
             assert self.rest_dims == other.rest_dims
             return PartialDiagonalMatrix(self.matrix @ other.matrix, self.rest_dims)
         else:
             return NotImplemented
+
+    def __mul__(self, other):
+        if np.isscalar(other):
+            return PartialDiagonalMatrix(self.matrix * other, self.rest_dims)
+        else:
+            return NotImplemented
+    __rmul__ = __mul__
+    
+    def __add__(self, other):
+        if isinstance(other, DiagonalMatrix):
+            is_scaled_identity = (np.unique(other.diagonals).size == 1)
+            if not is_scaled_identity or self.matrix.shape[0] == self.matrix.shape[1]:
+                return NotImplemented
+            n = self.matrix.shape[0]
+            return PartialDiagonalMatrix(
+                self.matrix + DiagonalMatrix(np.full(n), other.diagonals[0]), self.rest_dims)
+        elif isinstance(other, np.ndarray):
+            assert other.ndim == 2
+            return self.asmatrix() + other
+        else:
+            return NotImplemented
+
     
     def matvec(self, v):
         """
@@ -144,17 +178,23 @@ def matrix_hash(a):
         return hash(a.data.tobytes()) # This makes a copy
     elif isinstance(a, DiagonalMatrix):
         return matrix_hash(a.diagonals)
+    elif isinstance(a, PartialDiagonalMatrix):
+        return matrix_hash(a.matrix)
     else:
         return ValueError("Not supported!")
 
 def inv(a):
     """ Compute inverse of a matrix a"""
     if isinstance(a, np.ndarray):
-        return np.linalg.inv(a)
+        r = np.linalg.inv(a)
     elif isinstance(a, DiagonalMatrix):
-        return DiagonalMatrix(1/a.diagonals)
+        r = DiagonalMatrix(1/a.diagonals)
+    elif isinstance(a, PartialDiagonalMatrix):
+        r = PartialDiagonalMatrix(np.linalg.inv(a.matrix), a.rest_dims)
     else:
         raise ValueError(f"Invalid type{type(a)} of a!")
+    assert type(r) != type(NotImplemented)
+    return r
 
 def diagonal(a):
     """ Return diagonal elements as a 1D array """
@@ -168,25 +208,33 @@ def diagonal(a):
 def matmul(a, b):
     """Matrix multiplication"""
     if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
-        return a @ b
+        r = a @ b
     elif isinstance(a, DiagonalMatrix):
-        return a.__matmul__(b)
+        r = a.__matmul__(b)
+    elif isinstance(a, PartialDiagonalMatrix):
+        r = a.__matmul__(b)
     elif isinstance(a, np.ndarray) and isinstance(b, DiagonalMatrix):
         if a.ndim == 1:
-            return a * b.diagonals
+            r = a * b.diagonals
         elif a.ndim == 2:
-            return a * b.diagonals[None,:]
+            r = a * b.diagonals[None,:]
     else:
         raise ValueError("No way to perform matmul!")
+    assert type(r) != type(NotImplemented)
+    return r
     
 
 def add(a, b):
     """Add two matrix objects"""
     if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
-        return a + b
+        r = a + b
     elif isinstance(a, DiagonalMatrix):
-        return a.__add__(b)
+        r = a.__add__(b)
+    elif isinstance(a, PartialDiagonalMatrix):
+        r = a.__add__(b)
     elif isinstance(b, DiagonalMatrix):
-        return b.__add__(a)
+        r = b.__add__(a)
     else:
         raise ValueError("No way to add two matrices!")
+    assert type(r) != type(NotImplemented)
+    return r

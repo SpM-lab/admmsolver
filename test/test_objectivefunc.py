@@ -29,7 +29,6 @@ def _minimize(f, x0, method="BFGS"):
 @pytest.mark.parametrize("isolver", [True, False])
 def test_least_squares(isolver):
     np.random.seed(100)
-
     N1, N2 = 4, 2
     alpha = 2.0
     y = _randn_cmplx(N1)
@@ -38,14 +37,30 @@ def test_least_squares(isolver):
     sqrt_mu = _randn_cmplx(N2, N2)
     mu = sqrt_mu.T.conjugate() @ sqrt_mu
     lstsq = LeastSquares(alpha, A, y, isolver=isolver)
-
     x = lstsq.solve(h, mu)
 
-    f = lambda x: np.real(alpha * np.linalg.norm(y - A @ x)**2)
     f_all = lambda x: np.real(alpha * np.linalg.norm(y - A @ x)**2 + h.T.conjugate() @ x + x.T.conjugate() @ h + x.conjugate().T @ mu @ x)
-
     x_ref = _minimize(f_all, x, "BFGS")
+    np.testing.assert_allclose(x, x_ref, rtol=1e-8)
+    np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
 
+
+@pytest.mark.parametrize("isolver", [True, False])
+def test_least_squares_partial(isolver):
+    np.random.seed(100)
+    N1, N2 = 4, 2
+    alpha = 2.0
+    y = _randn_cmplx(N1)
+    A = PartialDiagonalMatrix(_randn_cmplx(N1//2, N2//2), rest_dims=(2,))
+    assert A.shape == (N1, N2)
+    h = _randn_cmplx(N2)
+    sqrt_mu = _randn_cmplx(N2, N2)
+    mu = sqrt_mu.T.conjugate() @ sqrt_mu
+    lstsq = LeastSquares(alpha, A, y, isolver=isolver)
+    x = lstsq.solve(h, mu)
+
+    f_all = lambda x: np.real(alpha * np.linalg.norm(y - A @ x)**2 + h.T.conjugate() @ x + x.T.conjugate() @ h + x.conjugate().T @ mu @ x)
+    x_ref = _minimize(f_all, x, "BFGS")
     np.testing.assert_allclose(x, x_ref, rtol=1e-8)
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
 

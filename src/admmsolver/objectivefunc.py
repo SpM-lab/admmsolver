@@ -45,8 +45,6 @@ class LeastSquares(ObjectiveFunctionBase):
         assert A.ndim == 2
         assert y.ndim == 1
         assert A.shape[0] == y.size
-        if not isolver:
-            assert type(A) in [np.ndarray, DiagonalMatrix]
         super().__init__(A.shape[1])
 
         self._alpha = alpha
@@ -129,19 +127,21 @@ def _isolve(alpha, mat, mu, b: np.ndarray):
     Solve (alpha * mat + mu * I)^{-1} @ b,
     wehre v is a matrix.
     """
-    print(mat.shape, b.shape)
+    assert mat.matvec(b).shape == mat.shape[0]
     b_ = b
     if b_.ndim == 1:
         b_ = b_[:,None]
 
     def matvec(v):
         v = v.reshape(b_.shape)
-        return (alpha * (mat @ v) + mu @ v).ravel()
+        return alpha * (mat @ v).ravel() + (mu @ v).ravel()
+
     op = LinearOperator(
             dtype=np.complex128,
             shape=tuple(np.array(mat.shape) * b_.shape[1]),
             matvec=matvec
         )
+    assert op(b).shape == mat.shape[0]
     res = lgmres(op, b.ravel())[0]
     if b.ndim == 1:
         res = res.ravel()
