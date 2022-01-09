@@ -1,6 +1,7 @@
 import numpy as np
-from .matrix import DiagonalMatrix, inv, matrix_hash, add, matmul
+from .matrix import DiagonalMatrix, PartialDiagonalMatrix, inv, matrix_hash, add, matmul
 from typing import Union, Optional
+from scipy.sparse.linalg import lgmres, LinearOperator
 
 class ObjectiveFunctionBase(object):
     """
@@ -34,10 +35,18 @@ class LeastSquares(ObjectiveFunctionBase):
     """
     alpha * ||y - A @ x||_2^2
     """
-    def __init__(self, alpha: float, A: Union[np.ndarray, DiagonalMatrix], y: np.ndarray) -> None:
+    def __init__(
+            self,
+            alpha: float,
+            A: Union[np.ndarray, DiagonalMatrix, PartialDiagonalMatrix],
+            y: np.ndarray,
+            isolver: bool = False
+        ) -> None:
         assert A.ndim == 2
         assert y.ndim == 1
         assert A.shape[0] == y.size
+        if not isolver:
+            assert type(A) in [np.ndarray, DiagonalMatrix]
         super().__init__(A.shape[1])
 
         self._alpha = alpha
@@ -46,6 +55,7 @@ class LeastSquares(ObjectiveFunctionBase):
         self._Ac = A.conjugate().T
         self._AcA = A.conjugate().T @ A
         self._Nx = A.shape[1]
+        self._isolver = isolver
 
         # B = (A^+ A + mu)^{-1}
         self._B_cache = (None, None)
@@ -69,7 +79,11 @@ class LeastSquares(ObjectiveFunctionBase):
             mu = DiagonalMatrix(np.zeros(self._Nx))
         assert h.shape == (self._Nx,)
         assert mu.shape == (self._Nx, self._Nx)
-        return self._get_B(mu) @ (self._alpha * self._Ac @ self._y - h)
+        vec = self._alpha * self._Ac @ self._y - h
+        if self._isolver:
+            return _isolve(self._alpha, self._AcA, mu, vec)
+        else:
+            return self._get_B(mu) @ vec
 
 
 class ConstrainedLeastSquares(LeastSquares):
@@ -81,7 +95,9 @@ class ConstrainedLeastSquares(LeastSquares):
         A: Union[np.ndarray, DiagonalMatrix],
         y: np.ndarray,
         C: Union[np.ndarray, DiagonalMatrix],
-        D: np.ndarray) -> None:
+        D: np.ndarray,
+        isolver: bool = False
+        ) -> None:
         assert A.ndim == 2
         assert y.ndim == 1
         assert C.ndim == 2
@@ -93,15 +109,45 @@ class ConstrainedLeastSquares(LeastSquares):
 
         self._C = C
         self._D = D
+        self._isolver = isolver
 
     def solve(self, h: Optional[np.ndarray], mu: Optional[np.ndarray]) -> np.ndarray:
         assert h.shape == (self._Nx,)
         assert mu.shape == (self._Nx, self._Nx)
-        B =  self._get_B(mu)
-        xi1 = B @ (self._alpha * self._Ac @ self._y - h)
-        xi2 = - B @ self._C.conjugate().T
+        if self._isolver:
+            xi1 = _isolve(self._alpha, self._AcA, mu, self._alpha * (self._Ac @ self._y) - h)
+            xi2 = _isolve(self._alpha, self._AcA, mu, -self._C.conjugate().T)
+        else:
+            B =  self._get_B(mu)
+            xi1 = B @ (self._alpha * self._Ac @ self._y - h)
+            xi2 = - B @ self._C.conjugate().T
         nu = inv(self._C @ xi2) @ (self._D - self._C @ xi1)
         return xi1 + xi2 @ nu
+    
+def _isolve(alpha, mat, mu, b: np.ndarray):
+    """
+    Solve (alpha * mat + mu * I)^{-1} @ b,
+    wehre v is a matrix.
+    """
+    print(mat.shape, b.shape)
+    b_ = b
+    if b_.ndim == 1:
+        b_ = b_[:,None]
+
+    def matvec(v):
+        v = v.reshape(b_.shape)
+        return (alpha * (mat @ v) + mu @ v).ravel()
+    op = LinearOperator(
+            dtype=np.complex128,
+            shape=tuple(np.array(mat.shape) * b_.shape[1]),
+            matvec=matvec
+        )
+    res = lgmres(op, b.ravel())[0]
+    if b.ndim == 1:
+        res = res.ravel()
+    else:
+        res = res.reshape(-1, b.shape[1])
+    return res
 
 
 class L1Regularizer(ObjectiveFunctionBase):

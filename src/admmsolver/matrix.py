@@ -82,6 +82,57 @@ class DiagonalMatrix(object):
         return "DiagonalMatrix: " + self.diagonals.__str__()
 
 
+class PartialDiagonalMatrix(object):
+    """
+    Matrix that can be composed as
+        A otimes I.
+    """
+    def __init__(self, matrix: np.ndarray, rest_dims: tuple):
+        assert matrix.ndim == 2
+        self.matrix = matrix
+        self._matrix_cg = matrix.T.conj()
+        self.rest_dims = rest_dims
+        self.ndim = 2
+        self.shape = (matrix.shape[0]*np.prod(rest_dims), matrix.shape[1]*np.prod(rest_dims))
+
+    @property
+    def T(self):
+        return PartialDiagonalMatrix(self.matrix.T, self.rest_dims)
+
+    def conjugate(self):
+        return PartialDiagonalMatrix(self.matrix.conjugate(), self.rest_dims)
+
+    def __matmul__(self, other):
+        """ self @ other """
+        if isinstance(other, np.ndarray):
+            return self.matvec(other)
+        elif isinstance(other, PartialDiagonalMatrix):
+            assert self.rest_dims == other.rest_dims
+            return PartialDiagonalMatrix(self.matrix @ other.matrix, self.rest_dims)
+        else:
+            return NotImplemented
+    
+    def matvec(self, v):
+        """
+        (a \otimes I) @ v
+        v can be a vector or a tensor.
+        In the latter case, the matrix applied to the first axis of v.
+        """
+        return np.tensordot(
+            self.matrix,
+            v.reshape(self.matrix.shape[1], *self.rest_dims, -1),
+            axes=(-1,0)
+        ).ravel()
+
+    def rmatvec(self, v):
+        """ (a \otimes I)^dagger @ v"""
+        return np.tensordot(
+            self._matrix_cg,
+            v.reshape(-1, *self.rest_dims),
+            axes=(-1,0)
+        ).ravel()
+    
+
 def identity(n, dtype=np.float64):
     """ Create a DiagonalMatrix instance representing an identity matrix of size n """
     return DiagonalMatrix(np.ones(n, dtype=np.float64))

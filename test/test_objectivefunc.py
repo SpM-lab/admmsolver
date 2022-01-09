@@ -4,6 +4,8 @@ from scipy.optimize import minimize
 from admmsolver.objectivefunc import *
 from admmsolver.matrix import identity
 
+import pytest
+
 def _randn_cmplx(*shape):
     return np.random.randn(*shape) + 1j* np.random.randn(*shape)
 
@@ -24,8 +26,8 @@ def _minimize(f, x0, method="BFGS"):
     assert res.success
     return _from_real_array(res.x)
 
-
-def test_least_squares():
+@pytest.mark.parametrize("isolver", [True, False])
+def test_least_squares(isolver):
     np.random.seed(100)
 
     N1, N2 = 4, 2
@@ -35,7 +37,7 @@ def test_least_squares():
     h = _randn_cmplx(N2)
     sqrt_mu = _randn_cmplx(N2, N2)
     mu = sqrt_mu.T.conjugate() @ sqrt_mu
-    lstsq = LeastSquares(alpha, A, y)
+    lstsq = LeastSquares(alpha, A, y, isolver=isolver)
 
     x = lstsq.solve(h, mu)
 
@@ -48,7 +50,8 @@ def test_least_squares():
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
 
 
-def test_constrained_least_squares():
+@pytest.mark.parametrize("isolver", [True, False])
+def test_constrained_least_squares(isolver):
     np.random.seed(100)
 
     N1, N2 = 8, 4
@@ -61,7 +64,7 @@ def test_constrained_least_squares():
     D = _randn_cmplx(Nc)
     sqrt_mu = _randn_cmplx(N2, N2)
     mu = sqrt_mu.T.conjugate() @ sqrt_mu
-    lstsq = ConstrainedLeastSquares(alpha, A, y, C, D)
+    lstsq = ConstrainedLeastSquares(alpha, A, y, C, D, isolver=isolver)
 
     x = lstsq.solve(h, mu)
     assert np.abs(C@x - D).max() < 1e-10
