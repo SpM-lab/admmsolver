@@ -127,7 +127,6 @@ def _isolve(alpha, mat, mu, b: np.ndarray):
     Solve (alpha * mat + mu * I)^{-1} @ b,
     wehre v is a matrix.
     """
-    assert mat.matvec(b).shape == mat.shape[0]
     b_ = b
     if b_.ndim == 1:
         b_ = b_[:,None]
@@ -141,7 +140,6 @@ def _isolve(alpha, mat, mu, b: np.ndarray):
             shape=tuple(np.array(mat.shape) * b_.shape[1]),
             matvec=matvec
         )
-    assert op(b).shape == mat.shape[0]
     res = lgmres(op, b.ravel())[0]
     if b.ndim == 1:
         res = res.ravel()
