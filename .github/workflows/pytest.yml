@@ -37,3 +37,7 @@ jobs:
       - name: Test with pytest
         run: |
           pytest
+
+      - name: Static type tests
+        run: |
+          mypy --ignore-missing-imports test
