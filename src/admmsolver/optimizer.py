@@ -91,34 +91,38 @@ class SimpleOptimizer(object):
     """
     The simplest ADMM solver
     """
-    def __init__(self, problem, x0=None, mu=None):
+    def __init__(self, model: Model, x0=None, mu=None, max_mu: float =1e+3):
         """
-        problem: Problem instance
-           Problem to be solved.
+        model:
+           Model to be solved.
 
         x0: None or list of 1D array
            Initial guesses for variables `x_i`
         
         mu: float
            Penalty term
+
+        max_mu:
+           Max value of mu
         """
-        num_func = problem.num_func
+        num_func = model.num_func
         self._h = np.full((num_func, num_func), None)
         self._mu = np.full((num_func, num_func), 0.0)
-        self._problem = problem
+        self._model = model
+        self._max_mu = max_mu
 
         if x0 is not None:
             self._x = [x_.copy() for x_ in x0]
         else:
-            self._x = [np.zeros(problem.functions[k].size_x, dtype=np.complex128)
+            self._x = [np.zeros(model.functions[k].size_x, dtype=np.complex128)
                for k in range(num_func)]
         
         if mu is None:
             mu = 1.0
         for i, j in product(range(num_func), repeat=2):
-            if problem.E[i,j] is None or i <= j:
+            if model.E[i,j] is None or i <= j:
                 continue
-            self._h[i,j] = np.zeros(problem.E[i,j].shape[0], dtype=np.complex128)
+            self._h[i,j] = np.zeros(model.E[i,j].shape[0], dtype=np.complex128)
             self._mu[i,j] = mu
         
         self._primal_residual = []
@@ -132,13 +136,13 @@ class SimpleOptimizer(object):
     
     def __call__(self, x):
         """Evaluate the cost function"""
-        return np.sum([f(x) for f in self._problem.functions])
+        return np.sum([f(x) for f in self._model.functions])
     
     def _hk(self, k):
         """ Compute `h` for optimizing `x_k` """
         res = []
 
-        E = self._problem.E
+        E = self._model.E
 
         # i < k
         for i in range(k):
@@ -150,7 +154,7 @@ class SimpleOptimizer(object):
                 )
 
         # k < i
-        for i in range(k+1, self._problem.num_func):
+        for i in range(k+1, self._model.num_func):
             if self._h[i,k] is None:
                 continue
             res.append(
@@ -163,7 +167,6 @@ class SimpleOptimizer(object):
                 )
         
         if len(res) > 0:
-            #return np.asarray(sum(res)).reshape((self.x[k].size,))
             return _sum(res)
         else:
             return None
@@ -171,7 +174,7 @@ class SimpleOptimizer(object):
     def _mu_k(self, k):
         """ Compute `mu` for optimizing `x_k` """
 
-        E = self._problem.E
+        E = self._model.E
 
         res = []
         # i < k
@@ -181,7 +184,7 @@ class SimpleOptimizer(object):
             res.append(self._mu[k,i] * E[i,k].T.conjugate() @ E[i,k])
 
         # k < i
-        for i in range(k+1, self._problem.num_func):
+        for i in range(k+1, self._model.num_func):
             if self._h[i,k] is None:
                 continue
             res.append(self._mu[i,k] * E[i,k].T.conjugate() @ E[i,k])
@@ -193,23 +196,23 @@ class SimpleOptimizer(object):
     
     def residual(self):
         """ Compute primal residual and dual residual"""
-        num_func = self._problem.num_func
+        num_func = self._model.num_func
         primal = 0.0
         dual = 0.0
         for i, j in product(range(num_func), repeat=2):
-            if self._problem.E[i,j] is None or i <= j:
+            if self._model.E[i,j] is None or i <= j:
                 continue
             primal += \
                 np.linalg.norm(
-                    matmul(self._problem.E[i,j], self._x[j]) - 
-                       matmul(self._problem.E[j,i], self._x[i])
+                    matmul(self._model.E[i,j], self._x[j]) - 
+                       matmul(self._model.E[j,i], self._x[i])
                 )
             dual += \
                 np.linalg.norm(
                     self._mu[i,j] * matmul(
-                        self._problem.E[j,i],
+                        self._model.E[j,i],
                         matmul(
-                            self._problem.E[i,j],
+                            self._model.E[i,j],
                             self._x[j] - self._x_old[j]
                         )
                     )
@@ -219,21 +222,21 @@ class SimpleOptimizer(object):
 
     def update_mu(self, fact_incr=2, th_change=10):
         """ Update mu based on primal residual and dual residual"""
-        num_func = self._problem.num_func
+        num_func = self._model.num_func
         for i, j in product(range(num_func), repeat=2):
-            if self._problem.E[i,j] is None or i <= j:
+            if self._model.E[i,j] is None or i <= j:
                 continue
             primal = \
                 np.linalg.norm(
-                    matmul(self._problem.E[i,j], self._x[j]) - 
-                       matmul(self._problem.E[j,i], self._x[i])
+                    matmul(self._model.E[i,j], self._x[j]) - 
+                       matmul(self._model.E[j,i], self._x[i])
                 )
             dual = \
                 np.linalg.norm(
                     self._mu[i,j] * matmul(
-                        self._problem.E[j,i],
+                        self._model.E[j,i],
                         matmul(
-                            self._problem.E[i,j],
+                            self._model.E[i,j],
                             self._x[j] - self._x_old[j]
                         )
                     )
@@ -242,6 +245,8 @@ class SimpleOptimizer(object):
                 self._mu[i,j] *= fact_incr
             if dual > th_change * primal:
                 self._mu[i,j] /= fact_incr
+            self._mu[i,j] = min(self._mu[i,j], self._max_mu)
+            print(self._mu[i,j])
         
 
     def solve(self, niter=10000, callback=None, interval_update_mu=100):
@@ -260,19 +265,19 @@ class SimpleOptimizer(object):
         self._x_old = [x_.copy() for x_ in self._x]
 
         # Optimize x
-        for k in range(self._problem.num_func):
-            self._x[k][:] = self._problem.functions[k].solve(
+        for k in range(self._model.num_func):
+            self._x[k][:] = self._model.functions[k].solve(
                 self._hk(k),
                 self._mu_k(k)
             )
 
         # Optimize dual variables
-        for i in range(self._problem.num_func):
+        for i in range(self._model.num_func):
             for j in range(i):
                 if self._h[i,j] is not None:
                     self._h[i,j] += self._mu[i,j] * (
-                        matmul(self._problem.E[j,i], self._x[i]) -
-                        matmul(self._problem.E[i,j], self._x[j])
+                        matmul(self._model.E[j,i], self._x[i]) -
+                        matmul(self._model.E[i,j], self._x[j])
                     )
 
 
