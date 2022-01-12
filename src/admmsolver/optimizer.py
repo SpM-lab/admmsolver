@@ -32,7 +32,7 @@ class EqualityCondition(object):
     def size(self):
         return self.E1.shape[0]
 
-class Problem(object):
+class Model(object):
     def __init__(self,
         functions: ObjectiveFunctionBase,
         equality_conditons: Union[tuple, List[EqualityCondition]] =[]
@@ -81,6 +81,10 @@ class Problem(object):
             raise RuntimeError("Duplicate entries in equality_conditions")
         self._E[e.i1, e.i2] = e.E1
         self._E[e.i2, e.i1] = e.E2
+
+
+# Backward compatibility
+Problem = Model
 
 
 class SimpleOptimizer(object):

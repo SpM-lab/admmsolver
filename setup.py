@@ -49,7 +49,7 @@ setup(
         ],
     author_email='h.shinaoka@gmail.com',
 
-    python_requires='>=3',
+    python_requires='>=3.6',
     install_requires=[
         'numpy',
         'scipy'
