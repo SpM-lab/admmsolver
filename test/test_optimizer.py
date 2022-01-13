@@ -2,9 +2,13 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.optimize._trustregion_constr.equality_constrained_sqp import equality_constrained_sqp
 
-from admmsolver.objectivefunc import LeastSquares, L1Regularizer
-from admmsolver.optimizer import SimpleOptimizer, Problem
+from admmsolver.objectivefunc import LeastSquares, L1Regularizer, L2Regularizer
+from admmsolver.optimizer import SimpleOptimizer, Model
 from admmsolver.matrix import identity, DiagonalMatrix
+
+
+def _randn_cmplx(*shape):
+    return np.random.randn(*shape) + 1j* np.random.randn(*shape)
 
 def test_LASSO():
     """
@@ -36,7 +40,7 @@ def test_LASSO():
     equality_conditions = [
        (1, 0, identity(2), identity(2))
     ]
-    p = Problem([lstsq, l1], equality_conditions)
+    p = Model([lstsq, l1], equality_conditions)
     opt = SimpleOptimizer(p)
 
     assert np.abs(opt(x_ref) - f(x_ref)) < 1e-10
@@ -69,10 +73,37 @@ def test_basis_pursuit():
     equality_conditions = [
       (1, 0, identity(N), identity(N))
     ]
-    p = Problem([lstsq, l1], equality_conditions)
+    p = Model([lstsq, l1], equality_conditions)
     opt = SimpleOptimizer(p)
 
     niter = 100
     opt.solve(niter)
 
     np.testing.assert_allclose(opt.x[0], xanswer, atol=1e-2*np.abs(xanswer).max(), rtol=0)
+
+
+def test_ridge():
+    """
+    |y - A * x|^2 + alpha |B x|_2,
+    The solution is
+       - (A^+ A + B^+B)^{-1} A^+ y
+    """
+    N1, N2, N3 = 2, 2, 1
+    np.random.seed(100)
+    y = _randn_cmplx(N1)
+    A = _randn_cmplx(N1, N2)
+    B = _randn_cmplx(N3, N2)
+    alpha = 1
+
+    # ADMM
+    lstsq = LeastSquares(1.0, A, y)
+    l2 = L2Regularizer(alpha, B)
+    equality_conditions = [
+       (1, 0, identity(N2), identity(N2))
+    ]
+    model = Model([lstsq, l2], equality_conditions)
+    opt = SimpleOptimizer(model)
+    opt.solve(niter=100, update_h=True)
+
+    x_ref = np.linalg.inv(A.conjugate().T @ A + alpha * B.conjugate().T @ B) @ A.conjugate().T @ y
+    np.testing.assert_allclose(opt.x[0], x_ref, atol=np.abs(x_ref).max()*1e-8)

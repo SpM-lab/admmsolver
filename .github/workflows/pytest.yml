@@ -1,4 +1,4 @@
-name: irbasis3 python package
+name: admmsolver python package
 
 on: [push]
 

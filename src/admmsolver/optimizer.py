@@ -149,7 +149,7 @@ class SimpleOptimizer(object):
             if self._h[k,i] is None:
                 continue
             res.append(
-                matmul(self._h[k,i].T.conjugate(), E[i,k])
+                matmul(E[i,k].T.conjugate(), self._h[k,i])
                 - self._mu[k,i] * (E[i,k].T.conjugate()@E[k,i]) @ self._x[i]
                 )
 
@@ -158,7 +158,7 @@ class SimpleOptimizer(object):
             if self._h[i,k] is None:
                 continue
             res.append(
-                -matmul(self._h[i,k].T.conjugate(), E[i,k])
+                -matmul(E[i,k].T.conjugate(), self._h[i,k])
                 -self._mu[i,k] *
                     matmul(
                         matmul(E[i,k].T.conjugate(), E[k,i]),
@@ -249,9 +249,15 @@ class SimpleOptimizer(object):
             print(self._mu[i,j])
         
 
-    def solve(self, niter=10000, callback=None, interval_update_mu=100):
+    def solve(
+            self,
+            niter:int =10000,
+            callback=None,
+            interval_update_mu:int =100,
+            update_h: bool = True
+        ):
         for iter in range(niter):
-            self.one_sweep()
+            self.one_sweep(update_h=update_h)
             primal, dual = self.residual()
             self._primal_residual.append(primal)
             self._dual_residual.append(dual)
@@ -260,7 +266,7 @@ class SimpleOptimizer(object):
             if iter % interval_update_mu == 0:
                 self.update_mu()
 
-    def one_sweep(self):
+    def one_sweep(self, update_h: bool):
         """Update all variables in a single sweep"""
         self._x_old = [x_.copy() for x_ in self._x]
 
@@ -272,13 +278,14 @@ class SimpleOptimizer(object):
             )
 
         # Optimize dual variables
-        for i in range(self._model.num_func):
-            for j in range(i):
-                if self._h[i,j] is not None:
-                    self._h[i,j] += self._mu[i,j] * (
-                        matmul(self._model.E[j,i], self._x[i]) -
-                        matmul(self._model.E[i,j], self._x[j])
-                    )
+        if update_h:
+            for i in range(self._model.num_func):
+                for j in range(i):
+                    if self._h[i,j] is not None:
+                        self._h[i,j] += self._mu[i,j] * (
+                            matmul(self._model.E[j,i], self._x[i]) -
+                            matmul(self._model.E[i,j], self._x[j])
+                        )
 
 
 def _sum(objs):

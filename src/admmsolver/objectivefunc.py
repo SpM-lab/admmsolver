@@ -51,7 +51,7 @@ class LeastSquares(ObjectiveFunctionBase):
         self._A = A
         self._y = y
         self._Ac = A.conjugate().T
-        self._AcA = A.conjugate().T @ A
+        self._AcA = self._Ac @ A
         self._Nx = A.shape[1]
         self._isolver = isolver
 
