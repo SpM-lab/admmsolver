@@ -194,6 +194,29 @@ class SimpleOptimizer(object):
         else:
             return None
     
+    def check_convergence(self, rtol)->bool:
+        """ Check convergence """
+        converged = True
+        for i, j in product(range(self._model.num_func), repeat=2):
+            if self._model.E[i,j] is None or i <= j:
+                continue
+            primal1 = matmul(self._model.E[i,j], self._x[j])
+            primal2 = matmul(self._model.E[j,i], self._x[i])
+            dual1 = self._mu[i,j] * matmul(
+                        self._model.E[j,i],
+                        matmul(self._model.E[i,j], self._x[j])
+                    )
+            dual2 = self._mu[i,j] * matmul(
+                        self._model.E[j,i],
+                        matmul(self._model.E[i,j], self._x_old[j])
+                    )
+            converged = converged and \
+                np.linalg.norm(primal1-primal2)/max(np.linalg.norm(primal1), np.linalg.norm(primal2)) < rtol
+            converged = converged and \
+                np.linalg.norm(dual1-dual2)/max(np.linalg.norm(dual1), np.linalg.norm(dual2)) < rtol
+            
+        return converged
+    
     def residual(self):
         """ Compute primal residual and dual residual"""
         num_func = self._model.num_func
@@ -246,7 +269,6 @@ class SimpleOptimizer(object):
             if dual > th_change * primal:
                 self._mu[i,j] /= fact_incr
             self._mu[i,j] = min(self._mu[i,j], self._max_mu)
-            print(self._mu[i,j])
         
 
     def solve(
@@ -254,7 +276,8 @@ class SimpleOptimizer(object):
             niter:int =10000,
             callback=None,
             interval_update_mu:int =100,
-            update_h: bool = True
+            update_h: bool = True,
+            rtol: float = 1e-12
         ):
         for iter in range(niter):
             self.one_sweep(update_h=update_h)
@@ -263,6 +286,8 @@ class SimpleOptimizer(object):
             self._dual_residual.append(dual)
             if callback is not None:
                 callback()
+            if self.check_convergence(rtol):
+                return
             if iter % interval_update_mu == 0:
                 self.update_mu()
 
