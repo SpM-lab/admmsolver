@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 from admmsolver.objectivefunc import *
-from admmsolver.matrix import identity
+from admmsolver.matrix import identity, asmatrixtype
 
 import pytest
 
@@ -35,11 +35,12 @@ def test_least_squares(isolver):
     A = _randn_cmplx(N1, N2)
     h = _randn_cmplx(N2)
     sqrt_mu = _randn_cmplx(N2, N2)
-    mu = sqrt_mu.T.conjugate() @ sqrt_mu
+    mu = asmatrixtype(sqrt_mu.T.conjugate() @ sqrt_mu)
     lstsq = LeastSquares(alpha, A, y, isolver=isolver)
     x = lstsq.solve(h, mu)
 
-    f_all = lambda x: np.real(alpha * np.linalg.norm(y - A @ x)**2 + h.T.conjugate() @ x + x.T.conjugate() @ h + x.conjugate().T @ mu @ x)
+    f_all = lambda x: np.real(alpha * np.linalg.norm(y - A @ x)**2 + \
+        h.T.conjugate() @ x + x.T.conjugate() @ h + x.conjugate().T @ (mu @ x))
     x_ref = _minimize(f_all, x, "BFGS")
     np.testing.assert_allclose(x, x_ref, rtol=1e-8)
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
@@ -55,11 +56,14 @@ def test_least_squares_partial(isolver):
     assert A.shape == (N1, N2)
     h = _randn_cmplx(N2)
     sqrt_mu = _randn_cmplx(N2, N2)
-    mu = sqrt_mu.T.conjugate() @ sqrt_mu
+    mu = asmatrixtype(sqrt_mu.T.conjugate() @ sqrt_mu)
     lstsq = LeastSquares(alpha, A, y, isolver=isolver)
     x = lstsq.solve(h, mu)
 
-    f_all = lambda x: np.real(alpha * np.linalg.norm(y - A @ x)**2 + h.T.conjugate() @ x + x.T.conjugate() @ h + x.conjugate().T @ mu @ x)
+    f_all = lambda x: \
+        np.real(
+            alpha * np.linalg.norm(y - A @ x)**2 + h.T.conjugate() @ x + \
+                x.T.conjugate() @ h + x.conjugate().T @ (mu @ x))
     x_ref = _minimize(f_all, x, "BFGS")
     np.testing.assert_allclose(x, x_ref, rtol=1e-8)
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
@@ -78,7 +82,7 @@ def test_constrained_least_squares(isolver):
     C = _randn_cmplx(Nc, N2)
     D = _randn_cmplx(Nc)
     sqrt_mu = _randn_cmplx(N2, N2)
-    mu = sqrt_mu.T.conjugate() @ sqrt_mu
+    mu = asmatrixtype(sqrt_mu.T.conjugate() @ sqrt_mu)
     lstsq = ConstrainedLeastSquares(alpha, A, y, C, D, isolver=isolver)
 
     x = lstsq.solve(h, mu)
@@ -135,7 +139,7 @@ def test_L2():
     N = 10
     M = 5
     sqrt_mu = _randn_cmplx(N, N)
-    mu = sqrt_mu.T.conjugate() @ sqrt_mu
+    mu = asmatrixtype(sqrt_mu.T.conjugate() @ sqrt_mu)
     alpha = 2.0
     A = _randn_cmplx(M, N)
     h = _randn_cmplx(N)
@@ -145,7 +149,7 @@ def test_L2():
     
     # Naive optimization
     f = lambda x: alpha * np.linalg.norm(A @ x)**2 + \
-        2*np.real(h.conjugate().T @ x) + np.real(x.conjugate().T @ mu @ x)
+        2*np.real(h.conjugate().T @ x) + np.real(x.conjugate().T @ (mu @ x))
     x_ref = _minimize(f, x, method="BFGS")
     np.testing.assert_allclose(x, x_ref, atol=np.abs(x_ref).max()*1e-5, rtol=0)
 
@@ -156,7 +160,7 @@ def test_semi_positive_definite_penalty():
     N = 10
 
     h = _randn_cmplx(N**2 * K)
-    mu = identity(N**2 * K)
+    mu = asmatrixtype(identity(N**2 * K))
 
     p = SemiPositiveDefinitePenalty((N,N,K), axis=2)
     res = p.solve(h, mu)

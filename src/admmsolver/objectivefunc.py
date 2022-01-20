@@ -1,13 +1,13 @@
 from operator import matmul
 from ssl import SSLSyscallError
 import numpy as np
-from .matrix import DiagonalMatrix, PartialDiagonalMatrix, ScaledIdentityMatrix, asmatrixtype, matrix_hash, MatrixBase
+from .matrix import DenseMatrix, DiagonalMatrix, PartialDiagonalMatrix, ScaledIdentityMatrix, asmatrixtype, matrix_hash, MatrixBase
 from typing import Union, Optional
 from scipy.sparse.linalg import lgmres, LinearOperator
 
 add = lambda x, y: x + y
 matmul = lambda x, y: x @ y
-inv = lambda x: x.inv()
+inv = lambda x: np.linalg.inv(x) if isinstance(x, np.ndarray) else x.inv()
 
 def _assert_optional_types(obj, types):
     flag = False
@@ -155,11 +155,14 @@ class ConstrainedLeastSquares(LeastSquares):
         nu = inv(self._C @ xi2) @ (self._D - self._C @ xi1)
         return xi1 + xi2 @ nu
     
-def _isolve(alpha, mat, mu, b: np.ndarray):
+def _isolve(alpha, mat, mu, b: Union[np.ndarray, DenseMatrix]):
     """
     Solve (alpha * mat + mu * I)^{-1} @ b,
     wehre v is a matrix.
     """
+    _assert_types(b, [np.ndarray, DenseMatrix])
+    if isinstance(b, DenseMatrix):
+        b = b.asmatrix()
     b_ = b
     if b_.ndim == 1:
         b_ = b_[:,None]

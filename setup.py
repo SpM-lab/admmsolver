@@ -20,7 +20,7 @@ def extract_version(*parts):
 
 
 VERSION = extract_version('src', 'admmsolver', '__init__.py')
-REPO_URL = "https://github.com/shinaoka/admmsolver"
+REPO_URL = "https://github.com/SpM-lab/admmsolver"
 LONG_DESCRIPTION = readfile('README.md')
 
 setup(

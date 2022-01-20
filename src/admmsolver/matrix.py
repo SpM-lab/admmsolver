@@ -48,7 +48,7 @@ class DenseMatrix(_MatrixBase):
 
     def __matmul__(self, other):
         assert self.shape[1] == other.shape[0]
-        assert isinstance(other, _MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
+        assert isinstance(other, _MatrixBase) or (isinstance(other, np.ndarray) and other.ndim<=2)
         if isinstance(other, np.ndarray):
             return self.asmatrix() @ other
         else:
@@ -247,7 +247,7 @@ class PartialDiagonalMatrix(_MatrixBase):
     def __matmul__(self, other):
         """ self @ other """
         assert self.shape[1] == other.shape[0]
-        assert isinstance(other, _MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
+        assert isinstance(other, _MatrixBase) or isinstance(other, np.ndarray)
         if isinstance(other, np.ndarray):
             return self.matvec(other)
         elif isinstance(other, PartialDiagonalMatrix) and self.rest_dims == other.rest_dims:
