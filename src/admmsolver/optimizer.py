@@ -1,7 +1,7 @@
 import numpy as np
 
 from .objectivefunc import ObjectiveFunctionBase
-from .matrix import matmul, DiagonalMatrix
+from .matrix import matmul, DiagonalMatrix, add
 from itertools import product
 from typing import Union, Optional, List
 
@@ -57,7 +57,7 @@ class Model(object):
 
         for e in equality_conditons:
             self._add_equality_condition(e)
-
+        
     @property
     def functions(self):
         return self._functions
@@ -79,8 +79,8 @@ class Model(object):
         assert e.E2.shape[1] == self._functions[e.i2].size_x
         if self._E[e.i1, e.i2] is not None:
             raise RuntimeError("Duplicate entries in equality_conditions")
-        self._E[e.i1, e.i2] = e.E1
-        self._E[e.i2, e.i1] = e.E2
+        self._E[e.i2, e.i1] = e.E1
+        self._E[e.i1, e.i2] = e.E2
 
 
 # Backward compatibility
@@ -112,6 +112,8 @@ class SimpleOptimizer(object):
         self._max_mu = max_mu
 
         if x0 is not None:
+            for i in range(x0):
+                assert model._functions[i].size_x == x0[i].size
             self._x = [x_.copy() for x_ in x0]
         else:
             self._x = [np.zeros(model.functions[k].size_x, dtype=np.complex128)
@@ -318,5 +320,5 @@ def _sum(objs):
     res = objs[0]
     if len(objs) > 1:
         for x in objs[1:]:
-           res += x
+           res = add(res, x)
     return res

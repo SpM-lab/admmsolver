@@ -1,5 +1,5 @@
 import numpy as np
-from .matrix import DiagonalMatrix, PartialDiagonalMatrix, inv, matrix_hash, add, matmul
+from .matrix import DiagonalMatrix, PartialDiagonalMatrix, asmatrix, inv, matrix_hash, add, matmul
 from typing import Union, Optional
 from scipy.sparse.linalg import lgmres, LinearOperator
 
@@ -253,10 +253,21 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
     def __call__(self, x: np.ndarray):
         return 0.0
 
-    def solve(self, h : np.ndarray, mu: DiagonalMatrix):
+    def solve(self, h : np.ndarray, mu):
         """
         This function works only if mu is a diagonal matrix
+        mu must be regarded as a diagonal matrix
         """
+        assert isinstance(h, np.ndarray)
+        if not isinstance(mu, DiagonalMatrix):
+            mu_mat = asmatrix(mu)
+            mu_diag = np.diag(mu_mat)
+            err = np.abs(mu_mat - np.diag(mu_diag))
+            if err.max() > max(1e-10, 1e-10*np.abs(mu_mat).max()):
+                print(mu_mat)
+                raise ValueError("mu is not a diagonal matrix!")
+            mu = DiagonalMatrix(mu_diag)
+
         if np.iscomplexobj(h):
             h = h.real
         x_ = (-h/mu.diagonals).reshape(self._shape)
