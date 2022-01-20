@@ -155,8 +155,8 @@ class SimpleOptimizer(object):
             if self._h[k,i] is None:
                 continue
             res.append(
-                matmul(E[i,k].T.conjugate(), self._h[k,i])
-                - self._mu[k,i] * (E[i,k].T.conjugate()@E[k,i]) @ self._x[i]
+                E[i,k].T.conjugate() @ self._h[k,i]
+                - self._mu[k,i] * E[i,k].T.conjugate()@ (E[k,i] @ self._x[i])
                 )
 
         # k < i
@@ -164,12 +164,8 @@ class SimpleOptimizer(object):
             if self._h[i,k] is None:
                 continue
             res.append(
-                -matmul(E[i,k].T.conjugate(), self._h[i,k])
-                -self._mu[i,k] *
-                    matmul(
-                        matmul(E[i,k].T.conjugate(), E[k,i]),
-                        self._x[i]
-                    )
+                    - E[i,k].T.conjugate() @ self._h[i,k]
+                    - self._mu[i,k] * E[i,k].T.conjugate() @ (E[k,i] @ self._x[i])
                 )
         
         if len(res) > 0:
@@ -206,16 +202,10 @@ class SimpleOptimizer(object):
         for i, j in product(range(self._model.num_func), repeat=2):
             if self._model.E[i,j] is None or i <= j:
                 continue
-            primal1 = matmul(self._model.E[i,j], self._x[j])
-            primal2 = matmul(self._model.E[j,i], self._x[i])
-            dual1 = self._mu[i,j] * matmul(
-                        self._model.E[j,i],
-                        matmul(self._model.E[i,j], self._x[j])
-                    )
-            dual2 = self._mu[i,j] * matmul(
-                        self._model.E[j,i],
-                        matmul(self._model.E[i,j], self._x_old[j])
-                    )
+            primal1 = self._model.E[i,j] @ self._x[j]
+            primal2 = self._model.E[j,i] @ self._x[i]
+            dual1 = self._mu[i,j] * self._model.E[j,i] @ (self._model.E[i,j] @ self._x[j])
+            dual2 = self._mu[i,j] * self._model.E[j,i] @ (self._model.E[i,j] @ self._x_old[j])
             converged = converged and \
                 np.linalg.norm(primal1-primal2)/max(np.linalg.norm(primal1), np.linalg.norm(primal2)) < rtol
             converged = converged and \
@@ -233,17 +223,13 @@ class SimpleOptimizer(object):
                 continue
             primal += \
                 np.linalg.norm(
-                    matmul(self._model.E[i,j], self._x[j]) - 
-                       matmul(self._model.E[j,i], self._x[i])
+                    self._model.E[i,j]@self._x[j] - self._model.E[j,i]@self._x[i]
                 )
             dual += \
                 np.linalg.norm(
-                    self._mu[i,j] * matmul(
-                        self._model.E[j,i],
-                        matmul(
-                            self._model.E[i,j],
-                            self._x[j] - self._x_old[j]
-                        )
+                    self._mu[i,j] * (
+                        self._model.E[j,i] @
+                        (self._model.E[i,j] @ self._x[j] - self._x_old[j])
                     )
                 )
         return primal, dual
@@ -257,17 +243,14 @@ class SimpleOptimizer(object):
                 continue
             primal = \
                 np.linalg.norm(
-                    matmul(self._model.E[i,j], self._x[j]) - 
-                       matmul(self._model.E[j,i], self._x[i])
+                    self._model.E[i,j]@self._x[j] - 
+                       self._model.E[j,i]@self._x[i]
                 )
             dual = \
                 np.linalg.norm(
-                    self._mu[i,j] * matmul(
-                        self._model.E[j,i],
-                        matmul(
-                            self._model.E[i,j],
-                            self._x[j] - self._x_old[j]
-                        )
+                    self._mu[i,j] * (
+                        self._model.E[j,i] @
+                            self._model.E[i,j] @ (self._x[j] - self._x_old[j])
                     )
                 )
             if primal > th_change * dual:
@@ -314,8 +297,8 @@ class SimpleOptimizer(object):
                 for j in range(i):
                     if self._h[i,j] is not None:
                         self._h[i,j] += self._mu[i,j] * (
-                            matmul(self._model.E[j,i], self._x[i]) -
-                            matmul(self._model.E[i,j], self._x[j])
+                            (self._model.E[j,i]@self._x[i]) -
+                            (self._model.E[i,j]@self._x[j])
                         )
 
 
