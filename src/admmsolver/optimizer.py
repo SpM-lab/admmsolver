@@ -3,7 +3,7 @@ import numpy as np
 from .objectivefunc import ObjectiveFunctionBase
 from .matrix import DiagonalMatrix, MatrixBase, asmatrixtype
 from itertools import product
-from typing import Union, Optional, List, Sequence
+from typing import Tuple, Union, Optional, List, Sequence
 
 matmul = lambda x, y: x@y
 add = lambda x, y: x+y
@@ -62,19 +62,19 @@ class Model(object):
                 self._add_equality_condition(e)
         
     @property
-    def functions(self):
+    def functions(self) -> Sequence[ObjectiveFunctionBase]:
         return self._functions
     
     @property
-    def num_func(self):
+    def num_func(self) -> int:
         return self._num_func
     
     @property
-    def E(self):
+    def E(self) -> np.ndarray:
         """ E_{ij} """
         return self._E
 
-    def _add_equality_condition(self, e: EqualityCondition):
+    def _add_equality_condition(self, e: EqualityCondition) -> None:
         """
         Add an equality condition
         """
@@ -94,7 +94,7 @@ class SimpleOptimizer(object):
     """
     The simplest ADMM solver
     """
-    def __init__(self, model: Model, x0=None, mu=None, max_mu: float =1e+3):
+    def __init__(self, model: Model, x0=None, mu=None, max_mu: float =1e+3) -> None:
         """
         model:
            Model to be solved.
@@ -135,15 +135,15 @@ class SimpleOptimizer(object):
 
     
     @property
-    def x(self):
+    def x(self) -> List[np.ndarray]:
         return self._x
     
     
-    def __call__(self, x):
+    def __call__(self, x: List[np.ndarray]) -> float:
         """Evaluate the cost function"""
-        return np.sum([f(x) for f in self._model.functions])
+        return float(np.sum([f(x_) for x_, f in zip(x, self._model.functions)]))
     
-    def _hk(self, k):
+    def _hk(self, k: int) -> Optional[np.ndarray]:
         """ Compute `h` for optimizing `x_k` """
         res = []
 
@@ -172,7 +172,7 @@ class SimpleOptimizer(object):
         else:
             return None
 
-    def _mu_k(self, k):
+    def _mu_k(self, k) -> Optional[MatrixBase]:
         """ Compute `mu` for optimizing `x_k` """
 
         E = self._model.E
@@ -195,7 +195,7 @@ class SimpleOptimizer(object):
         else:
             return None
     
-    def check_convergence(self, rtol)->bool:
+    def check_convergence(self, rtol) -> bool:
         """ Check convergence """
         converged = True
         for i, j in product(range(self._model.num_func), repeat=2):
@@ -212,7 +212,7 @@ class SimpleOptimizer(object):
             
         return converged
     
-    def residual(self):
+    def residual(self) -> Tuple[float, float]:
         """ Compute primal residual and dual residual"""
         num_func = self._model.num_func
         primal = 0.0
@@ -221,20 +221,24 @@ class SimpleOptimizer(object):
             if self._model.E[i,j] is None or i <= j:
                 continue
             primal += \
-                np.linalg.norm(
-                    self._model.E[i,j]@self._x[j] - self._model.E[j,i]@self._x[i]
+                float(
+                    np.linalg.norm(
+                        self._model.E[i,j]@self._x[j] - self._model.E[j,i]@self._x[i]
+                    )
                 )
             dual += \
-                np.linalg.norm(
-                    self._mu[i,j] * (
-                        self._model.E[j,i] @
-                        self._model.E[i,j] @ (self._x[j] - self._x_old[j])
+                float(
+                    np.linalg.norm(
+                        self._mu[i,j] * (
+                            self._model.E[j,i] @
+                            self._model.E[i,j] @ (self._x[j] - self._x_old[j])
+                        )
                     )
                 )
         return primal, dual
 
 
-    def update_mu(self, fact_incr=2, th_change=10):
+    def update_mu(self, fact_incr: float = 2.0, th_change: float = 10.0) -> None:
         """ Update mu based on primal residual and dual residual"""
         num_func = self._model.num_func
         for i, j in product(range(num_func), repeat=2):
@@ -266,7 +270,7 @@ class SimpleOptimizer(object):
             interval_update_mu:int =100,
             update_h: bool = True,
             rtol: float = 1e-12
-        ):
+        ) -> None:
         for iter in range(niter):
             self.one_sweep(update_h=update_h)
             primal, dual = self.residual()
@@ -279,7 +283,7 @@ class SimpleOptimizer(object):
             if iter % interval_update_mu == 0:
                 self.update_mu()
 
-    def one_sweep(self, update_h: bool):
+    def one_sweep(self, update_h: bool) -> None:
         """Update all variables in a single sweep"""
         self._x_old = [x_.copy() for x_ in self._x]
 

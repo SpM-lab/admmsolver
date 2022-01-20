@@ -43,7 +43,7 @@ def test_LASSO():
     p = Model([lstsq, l1], equality_conditions)
     opt = SimpleOptimizer(p)
 
-    assert np.abs(opt(x_ref) - f(x_ref)) < 1e-10
+    assert np.abs(opt(2*[x_ref]) - f(x_ref)) < 1e-10
     opt.solve(100)
     x_res = opt.x
     for x in x_res:

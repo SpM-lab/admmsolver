@@ -79,7 +79,7 @@ class LeastSquares(ObjectiveFunctionBase):
         self._isolver = isolver
 
         # B = (A^+ A + mu)^{-1}
-        self._B_cache = (None, MatrixBase())
+        self._B_cache = (0, MatrixBase())
     
     def __call__(self, x: np.ndarray) -> float:
         return float(self._alpha * np.linalg.norm(self._y - self._A @ x)**2)
@@ -103,11 +103,14 @@ class LeastSquares(ObjectiveFunctionBase):
             mu = DiagonalMatrix(np.zeros(self._Nx))
         assert h.shape == (self._Nx,)
         assert mu.shape == (self._Nx, self._Nx)
-        vec = self._alpha * self._Ac @ self._y - h
+        vec = self._alpha * (self._Ac @ self._y) - h
+        assert isinstance(vec, np.ndarray)
         if self._isolver:
             return _isolve(self._alpha, self._AcA, mu, vec)
         else:
-            return self._get_B(mu) @ vec
+            r = self._get_B(mu) @ vec
+            assert isinstance(r, np.ndarray)
+            return r
 
 
 class ConstrainedLeastSquares(LeastSquares):
@@ -118,7 +121,7 @@ class ConstrainedLeastSquares(LeastSquares):
         alpha: float,
         A: Union[np.ndarray, MatrixBase],
         y: np.ndarray,
-        C: Union[np.ndarray, MatrixBase],
+        C: Union[np.ndarray, DenseMatrix],
         D: np.ndarray,
         isolver: bool = False
         ) -> None:
@@ -130,7 +133,7 @@ class ConstrainedLeastSquares(LeastSquares):
         assert A.shape[1] == C.shape[1]
         assert C.shape[0] == D.size
         _assert_types(A, [np.ndarray, MatrixBase])
-        _assert_types(C, [np.ndarray, MatrixBase])
+        _assert_types(C, [np.ndarray, DenseMatrix])
         A = asmatrixtype(A)
         C = asmatrixtype(C)
         super().__init__(alpha, A, y)
@@ -150,7 +153,9 @@ class ConstrainedLeastSquares(LeastSquares):
             mu = ScaledIdentityMatrix(self._Nx, 0.0)
         assert mu.shape == (self._Nx, self._Nx)
         if self._isolver:
-            xi1 = _isolve(self._alpha, self._AcA, mu, self._alpha * (self._Ac @ self._y) - h)
+            vec = self._alpha * (self._Ac @ self._y) - h
+            assert isinstance(vec, np.ndarray)
+            xi1 = _isolve(self._alpha, self._AcA, mu, vec)
             xi2 = _isolve(self._alpha, self._AcA, mu, -self._C.conjugate().T)
         else:
             B =  self._get_B(mu)
@@ -239,7 +244,7 @@ class L2Regularizer(ObjectiveFunctionBase):
         self._AcA = matmul(A.conjugate().T, A)
 
         # B = (A^+ A + mu)^{-1}
-        self._B_cache = (None, None)
+        self._B_cache = (0, MatrixBase())
     
     def __call__(self, x: np.ndarray):
         return self._alpha * np.linalg.norm(matmul(self._A, x))**2
