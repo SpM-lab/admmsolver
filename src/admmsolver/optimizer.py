@@ -5,9 +5,6 @@ from .matrix import DiagonalMatrix, MatrixBase, asmatrixtype
 from itertools import product
 from typing import Tuple, Union, Optional, List, Sequence
 
-matmul = lambda x, y: x@y
-add = lambda x, y: x+y
-
 class EqualityCondition(object):
     """
     Equality condition:
@@ -78,6 +75,7 @@ class Model(object):
         """
         Add an equality condition
         """
+        assert isinstance(e, EqualityCondition)
         assert e.E1.shape[1] == self._functions[e.i1].size_x
         assert e.E2.shape[1] == self._functions[e.i2].size_x
         if self._E[e.i1, e.i2] is not None:
@@ -310,5 +308,5 @@ def _sum(objs):
     res = objs[0]
     if len(objs) > 1:
         for x in objs[1:]:
-           res = add(res, x)
+           res = res + x
     return res

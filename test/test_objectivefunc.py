@@ -28,6 +28,9 @@ def _minimize(f, x0, method="BFGS"):
 
 @pytest.mark.parametrize("isolver", [True, False])
 def test_least_squares(isolver):
+    """
+    Least-squares fit with a dense coefficient matrix 
+    """
     np.random.seed(100)
     N1, N2 = 4, 2
     alpha = 2.0
@@ -48,11 +51,15 @@ def test_least_squares(isolver):
 
 @pytest.mark.parametrize("isolver", [True, False])
 def test_least_squares_partial(isolver):
+    """
+    Least-squares fit with a coefficient matrix of type PartialDiagonalMatrix
+    """
     np.random.seed(100)
-    N1, N2 = 4, 2
+    N1, N2 = 40, 20
     alpha = 2.0
+    rest_dim_size = 20
     y = _randn_cmplx(N1)
-    A = PartialDiagonalMatrix(_randn_cmplx(N1//2, N2//2), rest_dims=(2,))
+    A = PartialDiagonalMatrix(_randn_cmplx(N1//rest_dim_size, N2//rest_dim_size), rest_dims=(rest_dim_size,))
     assert A.shape == (N1, N2)
     h = _randn_cmplx(N2)
     sqrt_mu = _randn_cmplx(N2, N2)
@@ -65,12 +72,15 @@ def test_least_squares_partial(isolver):
             alpha * np.linalg.norm(y - A @ x)**2 + h.T.conjugate() @ x + \
                 x.T.conjugate() @ h + x.conjugate().T @ (mu @ x))
     x_ref = _minimize(f_all, x, "BFGS")
-    np.testing.assert_allclose(x, x_ref, rtol=1e-8)
+    np.testing.assert_allclose(x, x_ref, rtol=1e-4)
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
 
 
 @pytest.mark.parametrize("isolver", [True, False])
 def test_constrained_least_squares(isolver):
+    """
+    Linearly constrained least squares
+    """
     np.random.seed(100)
 
     N1, N2 = 8, 4
