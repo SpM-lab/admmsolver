@@ -3,7 +3,7 @@ import numpy as np
 from .objectivefunc import ObjectiveFunctionBase
 from .matrix import DiagonalMatrix, MatrixBase, asmatrixtype
 from itertools import product
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Sequence
 
 matmul = lambda x, y: x@y
 add = lambda x, y: x+y
@@ -38,7 +38,7 @@ class EqualityCondition(object):
 
 class Model(object):
     def __init__(self,
-        functions: ObjectiveFunctionBase,
+        functions: Sequence[ObjectiveFunctionBase],
         equality_conditons: Union[tuple, List[EqualityCondition]] =[]
         ) -> None:
         """
@@ -54,13 +54,12 @@ class Model(object):
         self._num_func = len(functions)
         self._E = np.full((self._num_func, self._num_func), None)
 
-        # For backward compatibility
-        for idx_eq in range(len(equality_conditons)):
-            if isinstance(equality_conditons[idx_eq], tuple):
-                equality_conditons[idx_eq] = EqualityCondition(*equality_conditons[idx_eq])
-
         for e in equality_conditons:
-            self._add_equality_condition(e)
+            if isinstance(e, tuple):
+                # For backward compatibility
+                self._add_equality_condition(EqualityCondition(*e))
+            else:
+                self._add_equality_condition(e)
         
     @property
     def functions(self):
@@ -131,8 +130,8 @@ class SimpleOptimizer(object):
             self._h[i,j] = np.zeros(model.E[i,j].shape[0], dtype=np.complex128)
             self._mu[i,j] = mu
         
-        self._primal_residual = []
-        self._dual_residual = []
+        self._primal_residual = [] # type: List[float]
+        self._dual_residual = [] # type: List[float]
 
     
     @property
@@ -229,7 +228,7 @@ class SimpleOptimizer(object):
                 np.linalg.norm(
                     self._mu[i,j] * (
                         self._model.E[j,i] @
-                        (self._model.E[i,j] @ self._x[j] - self._x_old[j])
+                        self._model.E[i,j] @ (self._x[j] - self._x_old[j])
                     )
                 )
         return primal, dual
