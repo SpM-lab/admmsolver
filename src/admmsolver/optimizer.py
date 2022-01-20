@@ -116,7 +116,7 @@ class SimpleOptimizer(object):
         self._max_mu = max_mu
 
         if x0 is not None:
-            for i in range(x0):
+            for i in range(len(x0)):
                 assert model._functions[i].size_x == x0[i].size
             self._x = [x_.copy() for x_ in x0]
         else:
