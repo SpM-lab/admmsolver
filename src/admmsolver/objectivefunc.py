@@ -1,7 +1,28 @@
+from operator import matmul
+from ssl import SSLSyscallError
 import numpy as np
-from .matrix import DiagonalMatrix, PartialDiagonalMatrix, asmatrix, inv, matrix_hash, add, matmul
+from .matrix import DiagonalMatrix, PartialDiagonalMatrix, ScaledIdentityMatrix, asmatrixtype, matrix_hash, MatrixBase
 from typing import Union, Optional
 from scipy.sparse.linalg import lgmres, LinearOperator
+
+add = lambda x, y: x + y
+matmul = lambda x, y: x @ y
+inv = lambda x: x.inv()
+
+def _assert_optional_types(obj, types):
+    flag = False
+    if obj is None:
+        flag = True
+    for t in types:
+        flag = flag or isinstance(obj, t)
+    assert flag
+
+def _assert_types(obj, types):
+    flag = False
+    for t in types:
+        flag = flag or isinstance(obj, t)
+    assert flag
+
 
 class ObjectiveFunctionBase(object):
     """
@@ -21,7 +42,7 @@ class ObjectiveFunctionBase(object):
     
     def solve(self,
         h: Union[np.ndarray,None],
-        mu: Union[np.ndarray,DiagonalMatrix,None]) -> np.ndarray:
+        mu: MatrixBase) -> np.ndarray:
         """
         Return argmin_x F(x) + h^+ x + x^+ h + x^+ mu x
 
@@ -38,13 +59,15 @@ class LeastSquares(ObjectiveFunctionBase):
     def __init__(
             self,
             alpha: float,
-            A: Union[np.ndarray, DiagonalMatrix, PartialDiagonalMatrix],
+            A: Union[np.ndarray, MatrixBase],
             y: np.ndarray,
             isolver: bool = False
         ) -> None:
         assert A.ndim == 2
         assert y.ndim == 1
         assert A.shape[0] == y.size
+        _assert_types(A, [np.ndarray, MatrixBase])
+        A = asmatrixtype(A)
         super().__init__(A.shape[1])
 
         self._alpha = alpha
@@ -70,7 +93,10 @@ class LeastSquares(ObjectiveFunctionBase):
             )
         return self._B_cache[1]
     
-    def solve(self, h: Optional[np.ndarray], mu: Union[None, np.ndarray, DiagonalMatrix]) -> np.ndarray:
+    def solve(self, h: Optional[np.ndarray], mu: Optional[MatrixBase]) -> np.ndarray:
+        _assert_optional_types(h, [np.ndarray])
+        _assert_optional_types(mu, [MatrixBase])
+
         if h is None:
             h = np.zeros(self._Nx)
         if mu is None:
@@ -90,9 +116,9 @@ class ConstrainedLeastSquares(LeastSquares):
     """
     def __init__(self,
         alpha: float,
-        A: Union[np.ndarray, DiagonalMatrix],
+        A: Union[np.ndarray, MatrixBase],
         y: np.ndarray,
-        C: Union[np.ndarray, DiagonalMatrix],
+        C: Union[np.ndarray, MatrixBase],
         D: np.ndarray,
         isolver: bool = False
         ) -> None:
@@ -103,6 +129,10 @@ class ConstrainedLeastSquares(LeastSquares):
         assert A.shape[0] == y.size
         assert A.shape[1] == C.shape[1]
         assert C.shape[0] == D.size
+        _assert_types(A, [np.ndarray, MatrixBase])
+        _assert_types(C, [np.ndarray, MatrixBase])
+        A = asmatrixtype(A)
+        C = asmatrixtype(C)
         super().__init__(alpha, A, y)
 
         self._C = C
@@ -110,6 +140,9 @@ class ConstrainedLeastSquares(LeastSquares):
         self._isolver = isolver
 
     def solve(self, h: Optional[np.ndarray], mu: Optional[np.ndarray]) -> np.ndarray:
+        _assert_optional_types(h, [np.ndarray])
+        _assert_optional_types(mu, [MatrixBase])
+
         assert h.shape == (self._Nx,)
         assert mu.shape == (self._Nx, self._Nx)
         if self._isolver:
@@ -161,7 +194,7 @@ class L1Regularizer(ObjectiveFunctionBase):
     def __call__(self, x) -> float:
         return self._alpha * np.sum(np.abs(x))
 
-    def solve(self, h, mu) -> np.ndarray:
+    def solve(self, h: Optional[np.ndarray], mu: Union[None, DiagonalMatrix, ScaledIdentityMatrix]) -> np.ndarray:
         """
         x <- argmin_x alpha * |x|_1 + h^+ x + x^+ h + mu x^+ x
 
@@ -170,7 +203,8 @@ class L1Regularizer(ObjectiveFunctionBase):
           * mu is a diagonal matrix
         Return a real vector.
         """
-        assert isinstance(mu, DiagonalMatrix)
+        _assert_optional_types(h, [np.ndarray])
+        _assert_types(mu, [type(None), DiagonalMatrix, ScaledIdentityMatrix])
         if np.iscomplexobj(h):
             h = h.real
         return _softmax(-h/mu.diagonals, 0.5*self._alpha/mu.diagonals)
@@ -181,7 +215,9 @@ class L2Regularizer(ObjectiveFunctionBase):
     L2 regularization
         F(x) = alpha * |A x|_2^2
     """
-    def __init__(self, alpha: float, A: np.ndarray):
+    def __init__(self, alpha: float, A: Union[np.ndarray, MatrixBase]):
+        _assert_optional_types(A, [np.ndarray, MatrixBase])
+        A = asmatrixtype(A)
         super().__init__(A.shape[1])
         assert alpha > 0
         self._alpha = alpha
@@ -205,12 +241,14 @@ class L2Regularizer(ObjectiveFunctionBase):
 
     def solve(self,
         h: Optional[np.ndarray],
-        mu: Union[None, np.ndarray, DiagonalMatrix]):
+        mu: Union[None, MatrixBase]):
         """
         x <- argmin_x alpha * x^+ (A^+ A) x + h^+ x + x^+ h + x^+ mu x
           = - (alpha A^+ A + mu)^{-1} h
 
         """
+        _assert_optional_types(h, [np.ndarray])
+        _assert_optional_types(mu, [MatrixBase])
         return matmul(self._get_B(mu), -h)
 
 
@@ -225,13 +263,15 @@ class NonNegativePenalty(ObjectiveFunctionBase):
     def __call__(self, x: np.ndarray):
         return 0.0
 
-    def solve(self, h: np.ndarray, mu: DiagonalMatrix):
+    def solve(self, h: np.ndarray, mu: Union[DiagonalMatrix, ScaledIdentityMatrix]):
         """
         This function works only if all the following conditions are met:
           * h and x are real vectors
           * mu is a diagonal matrix
         Return a real vector.
         """
+        _assert_types(h, [np.ndarray])
+        _assert_types(mu, [DiagonalMatrix, ScaledIdentityMatrix])
         if np.iscomplexobj(h):
             h = h.real
         return _project_plus(-h/mu.diagonals)
@@ -253,20 +293,13 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
     def __call__(self, x: np.ndarray):
         return 0.0
 
-    def solve(self, h : np.ndarray, mu):
+    def solve(self, h : np.ndarray, mu: Union[DiagonalMatrix, ScaledIdentityMatrix]):
         """
         This function works only if mu is a diagonal matrix
         mu must be regarded as a diagonal matrix
         """
         assert isinstance(h, np.ndarray)
-        if not isinstance(mu, DiagonalMatrix):
-            mu_mat = asmatrix(mu)
-            mu_diag = np.diag(mu_mat)
-            err = np.abs(mu_mat - np.diag(mu_diag))
-            if err.max() > max(1e-10, 1e-10*np.abs(mu_mat).max()):
-                print(mu_mat)
-                raise ValueError("mu is not a diagonal matrix!")
-            mu = DiagonalMatrix(mu_diag)
+        _assert_types(mu, [DiagonalMatrix, ScaledIdentityMatrix])
 
         if np.iscomplexobj(h):
             h = h.real

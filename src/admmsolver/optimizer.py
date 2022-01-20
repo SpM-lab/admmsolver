@@ -1,10 +1,12 @@
 import numpy as np
 
 from .objectivefunc import ObjectiveFunctionBase
-from .matrix import matmul, DiagonalMatrix, add
+from .matrix import DiagonalMatrix, MatrixBase, asmatrixtype
 from itertools import product
 from typing import Union, Optional, List
 
+matmul = lambda x, y: x@y
+add = lambda x, y: x+y
 
 class EqualityCondition(object):
     """
@@ -15,13 +17,15 @@ class EqualityCondition(object):
     def __init__(self,
         i1: int,
         i2: int,
-        E1: Union[np.ndarray, DiagonalMatrix],
-        E2: Union[np.ndarray, DiagonalMatrix]
+        E1: Union[np.ndarray, MatrixBase],
+        E2: Union[np.ndarray, MatrixBase]
         ) -> None:
         assert i1 != i2, "i1 != i2!"
         assert E1.shape[0] == E2.shape[0], "Leading dimensions of E1 and E2 do not match!"
         assert E1.ndim == 2
         assert E2.ndim == 2
+        E1 = asmatrixtype(E1)
+        E2 = asmatrixtype(E2)
         super().__init__()
         self.i1 = i1
         self.i2 = i2

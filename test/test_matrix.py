@@ -1,59 +1,136 @@
-from admmsolver.matrix import identity, DiagonalMatrix, inv, matmul, PartialDiagonalMatrix
+from admmsolver.matrix import *
+from admmsolver.matrix import MatrixBase
 import numpy as np
 
 def _randn_cmplx(*shape):
     return np.random.randn(*shape) + 1j* np.random.randn(*shape)
 
-def test_diagonal_matrix():
+
+def test_matmal():
     np.random.seed(100)
 
-    d = np.array([1.0, 0.1])
-    m = DiagonalMatrix(d)
-    np.testing.assert_allclose(inv(m).diagonals, 1/d)
+    # (12, 12) * (12, 4)
+    n1, n2, n3 = 12, 12, 4
 
-    a = np.random.randn(2,2)
+    left_mat = []
+    left_mat.append(DiagonalMatrix(np.ones(n1)))
+    left_mat.append(ScaledIdentityMatrix(n1, 1+1j))
+    left_mat.append(PartialDiagonalMatrix(_randn_cmplx(3,3), rest_dims=(4,)))
+    left_mat.append(DenseMatrix(_randn_cmplx(n1, n2)))
 
-    np.testing.assert_allclose(matmul(a, m), a * d[None,:])
-    np.testing.assert_allclose(matmul(m, a), d[:,None] * a)
+    right_mat = []
+    right_mat.append(DenseMatrix(_randn_cmplx(n2, n3)))
+    right_mat.append(PartialDiagonalMatrix(_randn_cmplx(3,1), rest_dims=(4,)))
 
-def test_partial_diagonal_matrix():
+    for l in left_mat:
+        for r in right_mat:
+            print(type(l), type(r))
+            lr = l @ r
+            assert isinstance(lr, MatrixBase)
+            np.testing.assert_allclose(lr.asmatrix(), l.asmatrix() @ r.asmatrix())
+
+
+def test_matmal2():
     np.random.seed(100)
-    n1, n2 = 3, 2
-    rest_dims = (4,5)
-    a = _randn_cmplx(n1, n2)
-    pdm = PartialDiagonalMatrix(a, rest_dims)
 
-    x = _randn_cmplx(n2, *rest_dims)
-    np.testing.assert_allclose(
-        pdm.matvec(x.ravel()),
-        np.einsum('ij,jkl->ikl', a, x).ravel()
-    )
+    # (4, 12) * (12, 12)
+    n1, n2, n3 = 4, 12, 12
 
-    y = np.random.randn(n1, *rest_dims)
-    np.testing.assert_allclose(
-        pdm.rmatvec(y.ravel()),
-        np.einsum('ij,ikl->jkl', a.conj(), y).ravel()
-    )
+    left_mat = []
+    left_mat.append(DenseMatrix(_randn_cmplx(n1, n2)))
+    left_mat.append(PartialDiagonalMatrix(_randn_cmplx(1,3), rest_dims=(4,)))
 
-    pdm2 = pdm.conjugate().T @ pdm
-    x = _randn_cmplx(n2, *rest_dims)
-    np.testing.assert_allclose(
-        pdm2 @ x.ravel(),
-        np.einsum('ij,jkl->ikl', a.conj().T @ a, x).ravel()
-    )
+    right_mat = []
+    right_mat.append(DiagonalMatrix(np.ones(n3)))
+    right_mat.append(ScaledIdentityMatrix(n3, 1+1j))
+    right_mat.append(PartialDiagonalMatrix(_randn_cmplx(3,3), rest_dims=(4,)))
+    right_mat.append(DenseMatrix(_randn_cmplx(n2, n3)))
+
+    for l in left_mat:
+        for r in right_mat:
+            print(type(l), type(r))
+            lr = l @ r
+            assert isinstance(lr, MatrixBase)
+            np.testing.assert_allclose(lr.asmatrix(), l.asmatrix() @ r.asmatrix())
 
 
-
-def test_partial_diagonal_matrix_matvec():
+def test_mul_transpose_conj():
     np.random.seed(100)
-    n1, n2 = 3, 2
-    rest_dims = (4,5)
-    a = _randn_cmplx(n1, n2)
-    pdm = PartialDiagonalMatrix(a, rest_dims)
 
-    n3 = 4
-    x = _randn_cmplx(n2, *rest_dims, n3)
-    np.testing.assert_allclose(
-        pdm.matvec(x.ravel()),
-        np.einsum('ij,jklR->iklR', a, x).ravel()
-    )
+    # (4, 12)
+    n1, n2 = 4, 12
+
+    mat = []
+    mat.append(DiagonalMatrix(np.ones(n1)))
+    mat.append(ScaledIdentityMatrix(n1, 1+1j))
+    mat.append(PartialDiagonalMatrix(_randn_cmplx(3,3), rest_dims=(4,)))
+    mat.append(DenseMatrix(_randn_cmplx(n1, n2)))
+
+    c = 1 + 0.1j
+    for m in mat:
+        cm = c * m
+        assert isinstance(cm, MatrixBase)
+        np.testing.assert_allclose(cm.asmatrix(), c * m.asmatrix())
+
+        cm = m.T
+        assert isinstance(cm, MatrixBase)
+        np.testing.assert_allclose(cm.asmatrix(), m.asmatrix().T)
+
+        cc = m.conj()
+        assert isinstance(cc, MatrixBase)
+        np.testing.assert_allclose(cc.asmatrix(), m.asmatrix().conj())
+
+
+
+def test_add():
+    np.random.seed(100)
+
+    n = 2
+
+    mat = []
+    mat.append(DiagonalMatrix(np.ones(n)))
+    mat.append(ScaledIdentityMatrix(n, 1+1j))
+    mat.append(PartialDiagonalMatrix(_randn_cmplx(n, n), (1,1)))
+    mat.append(DenseMatrix(_randn_cmplx(n, n)))
+
+    for m in mat:
+        for m2 in mat:
+            print(type(m), type(m2))
+            m3 = m + m2
+            assert isinstance(m3, MatrixBase)
+            np.testing.assert_allclose(m3.asmatrix(), m.asmatrix() + m2.asmatrix())
+
+def test_inv():
+    np.random.seed(100)
+
+    n = 4
+
+    mat = []
+    mat.append(DiagonalMatrix(np.ones(n)))
+    mat.append(ScaledIdentityMatrix(n, 1+1j))
+    mat.append(PartialDiagonalMatrix(_randn_cmplx(2, 2), (2,)))
+    mat.append(DenseMatrix(_randn_cmplx(n, n)))
+
+    for m in mat:
+        inv_m = m.inv()
+        assert isinstance(inv_m, MatrixBase)
+        np.testing.assert_allclose(inv_m.asmatrix() @ m.asmatrix(), np.identity(n), rtol=0, atol=1e-12)
+
+def test_matvec():
+    np.random.seed(100)
+
+    n = 4
+
+    mat = []
+    mat.append(DiagonalMatrix(np.ones(n)))
+    mat.append(ScaledIdentityMatrix(n, 1+1j))
+    mat.append(PartialDiagonalMatrix(_randn_cmplx(2, 2), (2,)))
+    mat.append(DenseMatrix(_randn_cmplx(n, n)))
+
+    vec = np.ones(n)
+
+    for m in mat:
+        print(type(m))
+        mv = m @ vec
+        assert isinstance(mv, np.ndarray)
+        np.testing.assert_allclose(mv, m.asmatrix()@vec)
