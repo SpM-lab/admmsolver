@@ -1,7 +1,7 @@
 import numpy as np
 
 from .objectivefunc import ObjectiveFunctionBase
-from .matrix import DiagonalMatrix, MatrixBase, asmatrixtype
+from .matrix import MatrixBase, asmatrixtype
 from itertools import product
 from typing import Tuple, Union, Optional, List, Sequence
 
@@ -30,7 +30,7 @@ class EqualityCondition(object):
         self.E2 = E2
     
     @property
-    def size(self):
+    def size(self) -> int:
         return self.E1.shape[0]
 
 class Model(object):
