@@ -106,6 +106,7 @@ class SimpleOptimizer(object):
         max_mu:
            Max value of mu
         """
+        assert isinstance(model, Model)
         num_func = model.num_func
         self._h = np.full((num_func, num_func), None)
         self._mu = np.full((num_func, num_func), 0.0)
