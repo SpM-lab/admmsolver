@@ -80,7 +80,7 @@ class LeastSquares(ObjectiveFunctionBase):
     def __call__(self, x: np.ndarray) -> float:
         Ax = cast(np.ndarray, self._A @ x) # type: np.ndarray
         y = cast(np.ndarray, self._y) # type: np.ndarray
-        diff = y - Ax # type: np.ndarray
+        diff = cast(np.ndarray, y - Ax) # type: np.ndarray
         return float(self._alpha * np.linalg.norm(diff)**2)
 
     def _get_B(self, mu: MatrixBase) -> MatrixBase:
@@ -88,7 +88,7 @@ class LeastSquares(ObjectiveFunctionBase):
         if self._B_cache[0] != hash_:
             self._B_cache = (
                 hash_,
-                inv(add(self._alpha * self._AcA, mu))
+                cast(MatrixBase, inv(add(self._alpha * self._AcA, mu)))
             )
         return self._B_cache[1]
 
@@ -104,7 +104,7 @@ class LeastSquares(ObjectiveFunctionBase):
         assert mu.shape == (self._Nx, self._Nx)
         vec = self._alpha * (self._Ac @ self._y) - h
         assert isinstance(vec, np.ndarray)
-        return self._get_B(mu) @ vec
+        return cast(np.ndarray, self._get_B(mu) @ vec)
 
 
 class ConstrainedLeastSquares(LeastSquares):
