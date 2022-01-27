@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2021 H. Shinaoka and others
+# Copyright (C) 2021-2022 H. Shinaoka and others
 # SPDX-License-Identifier: MIT
 import io, os.path, re
 from setuptools import setup, find_packages

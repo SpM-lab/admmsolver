@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Callable, cast
 
 def second_deriv_prj(x):
     """
@@ -36,3 +37,5 @@ def smooth_regularizer_coeff(omega):
     dx = 0.5*(omega[2:] - omega[0:-2])
     prj_second_deriv = second_deriv_prj(omega)
     return np.sqrt(dx)[:,None] * prj_second_deriv
+
+norm = lambda x: cast(float, np.linalg.norm(cast(np.ndarray, x))) # Callable[np.ndarray, float]

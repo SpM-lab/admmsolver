@@ -1,14 +1,18 @@
+# Copyright (C) 2021-2022 H. Shinaoka and others
+# SPDX-License-Identifier: MIT
+
 import numpy as np
+from itertools import product
+from typing import Tuple, Union, Optional, List, Sequence, cast, Callable
 
 from .objectivefunc import ObjectiveFunctionBase
 from .matrix import MatrixBase, asmatrixtype
-from itertools import product
-from typing import Tuple, Union, Optional, List, Sequence
+from .util import norm
 
 class EqualityCondition(object):
     """
     Equality condition:
-       E1 @ x_{i1} - E2 @ x_{i2} = 0,
+        E1 @ x_{i1} - E2 @ x_{i2} = 0,
     where i != j.
     """
     def __init__(self,
@@ -193,24 +197,26 @@ class SimpleOptimizer(object):
             return _sum(res)
         else:
             return None
-    
+ 
     def check_convergence(self, rtol) -> bool:
         """ Check convergence """
         converged = True
         for i, j in product(range(self._model.num_func), repeat=2):
             if self._model.E[i,j] is None or i <= j:
                 continue
-            primal1 = self._model.E[i,j] @ self._x[j]
-            primal2 = self._model.E[j,i] @ self._x[i]
+            primal1 = cast(np.ndarray, self._model.E[i,j] @ self._x[j])
+            primal2 = cast(np.ndarray, self._model.E[j,i] @ self._x[i])
+            d_primal = cast(np.ndarray, primal1 - primal2)
             dual1 = self._mu[i,j] * self._model.E[j,i] @ (self._model.E[i,j] @ self._x[j])
             dual2 = self._mu[i,j] * self._model.E[j,i] @ (self._model.E[i,j] @ self._x_old[j])
+            d_dual = cast(np.ndarray, dual1 - dual2)
             converged = converged and \
-                np.linalg.norm(primal1-primal2)/max(np.linalg.norm(primal1), np.linalg.norm(primal2)) < rtol
+                norm(d_primal)/max(norm(primal1), norm(primal2)) < rtol
             converged = converged and \
-                np.linalg.norm(dual1-dual2)/max(np.linalg.norm(dual1), np.linalg.norm(dual2)) < rtol
-            
+                norm(d_dual)/max(norm(dual1), norm(dual2)) < rtol
+
         return converged
-    
+
     def residual(self) -> Tuple[float, float]:
         """ Compute primal residual and dual residual"""
         num_func = self._model.num_func
@@ -309,5 +315,5 @@ def _sum(objs):
     res = objs[0]
     if len(objs) > 1:
         for x in objs[1:]:
-           res = res + x
+            res = res + x
     return res

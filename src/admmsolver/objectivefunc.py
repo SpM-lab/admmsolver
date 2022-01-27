@@ -1,3 +1,6 @@
+# Copyright (C) 2021-2022 H. Shinaoka and others
+# SPDX-License-Identifier: MIT
+
 import numpy as np
 from .matrix import DenseMatrix, DiagonalMatrix, ScaledIdentityMatrix, asmatrixtype, matrix_hash, MatrixBase
 from typing import Sequence, Union, Optional, Tuple, cast, Iterable
@@ -108,7 +111,7 @@ class LeastSquares(ObjectiveFunctionBase):
 
 
 class ConstrainedLeastSquares(LeastSquares):
-    """
+    r"""
     alpha * ||y - A @ x||_2^2 + \infty * ||C@x - D||_2^2 = 0
     """
     def __init__(self,

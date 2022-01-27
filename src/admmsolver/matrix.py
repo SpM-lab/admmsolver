@@ -1,9 +1,9 @@
+# Copyright (C) 2021-2022 H. Shinaoka and others
+# SPDX-License-Identifier: MIT
 
 import numpy as np
 from typing import Union, Tuple, Optional
 from abc import abstractmethod
-
-from pyparsing import RecursiveGrammarException
 
 class MatrixBase(object):
     def __init__(self) -> None:
