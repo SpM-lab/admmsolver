@@ -1,6 +1,6 @@
 import numpy as np
 from .matrix import DenseMatrix, DiagonalMatrix, ScaledIdentityMatrix, asmatrixtype, matrix_hash, MatrixBase
-from typing import Union, Optional, Tuple, cast
+from typing import Sequence, Union, Optional, Tuple, cast, Iterable
 from scipy.sparse.linalg import lgmres, LinearOperator
 
 add = lambda x, y: x + y
@@ -298,7 +298,7 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
     1) Reshape x into a three-way tensor
     2) Along a given axis, we compute eigenvalues and remove negative ones (we assume hermition matrices).
     """
-    def __init__(self, shape: np.ndarray, axis: int):
+    def __init__(self, shape: Union[Sequence,np.ndarray], axis: int):
         assert len(shape) == 3
         super().__init__(np.prod(shape))
         self._shape = shape
