@@ -144,9 +144,13 @@ class ConstrainedLeastSquares(LeastSquares):
         assert mu.shape == (self._Nx, self._Nx)
         Ch = self._C.conjugate().T # type: DenseMatrix
         B =  self._get_B(mu)
-        xi1 = B @ (self._alpha * (self._Ac @ self._y) - h)
+        xi1 = cast(np.ndarray, B @ (self._alpha * (self._Ac @ self._y) - h))
+        assert isinstance(xi1, np.ndarray)
         xi2 = - (B @ Ch)
-        nu = inv(self._C @ xi2) @ (self._D - self._C @ xi1)
+        tmp1 = inv(self._C @ xi2) # Union[MatrixBase, np.ndarray]
+        tmp2 = cast(np.ndarray, self._D - self._C @ xi1)
+        assert isinstance(tmp2, np.ndarray)
+        nu = tmp1 @ tmp2
         return xi1 + xi2 @ nu
 
 def _isolve(alpha, mat, mu, b: Union[np.ndarray, DenseMatrix]):
