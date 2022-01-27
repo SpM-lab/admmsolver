@@ -1,9 +1,10 @@
 from admmsolver.matrix import *
 from admmsolver.matrix import MatrixBase
 import numpy as np
+from typing import Tuple
 
-def _randn_cmplx(*shape):
-    return np.random.randn(*shape) + 1j* np.random.randn(*shape)
+def _randn_cmplx(*shape) -> np.ndarray:
+    return np.random.randn(*shape) + 1j * np.random.randn(*shape)
 
 
 def test_matmal():
@@ -20,6 +21,7 @@ def test_matmal():
 
     right_mat = []
     right_mat.append(DenseMatrix(_randn_cmplx(n2, n3)))
+    right_mat.append(ScaledIdentityMatrix((n2, n3), 1+1j))
     right_mat.append(PartialDiagonalMatrix(_randn_cmplx(3,1), rest_dims=(4,)))
 
     for l in left_mat:
@@ -62,12 +64,15 @@ def test_mul_transpose_conj():
 
     mat = []
     mat.append(DiagonalMatrix(np.ones(n1)))
+    mat.append(DiagonalMatrix(np.ones(n1), shape=(n1, n2)))
     mat.append(ScaledIdentityMatrix(n1, 1+1j))
+    mat.append(ScaledIdentityMatrix((n1,n2), 1+1j))
     mat.append(PartialDiagonalMatrix(_randn_cmplx(3,3), rest_dims=(4,)))
     mat.append(DenseMatrix(_randn_cmplx(n1, n2)))
 
     c = 1 + 0.1j
     for m in mat:
+        print(type(m), m.shape)
         cm = c * m
         assert isinstance(cm, MatrixBase)
         np.testing.assert_allclose(cm.asmatrix(), c * m.asmatrix())

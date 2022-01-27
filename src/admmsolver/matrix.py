@@ -1,6 +1,9 @@
 
 import numpy as np
-from typing import Union
+from typing import Union, Tuple, Optional
+from abc import abstractmethod
+
+from pyparsing import RecursiveGrammarException
 
 class MatrixBase(object):
     def __init__(self) -> None:
@@ -9,73 +12,86 @@ class MatrixBase(object):
         self.shape = (1,1)
         self.ndim = 2
 
-    def asmatrix(self)->np.ndarray:
-        pass
-
-    def __mul__(self, other: Union[float, complex, np.float64, np.complex128])->'MatrixBase':
-        pass
-
-    __rmul__ = __mul__
-
-    def __matmul__(self, other: Union['MatrixBase', np.ndarray])->Union['MatrixBase',np.ndarray]:
-        pass
-    
-    def conjugate(self)->'MatrixBase':
-        pass
-
-    @property
-    def T(self)->'MatrixBase':
-        pass
-
-    @property
-    def diagonals(self)->np.ndarray:
-        pass
-
-    conj = conjugate
+    def is_diagonal(self) -> bool:
+        return self.shape[0] == self.shape[1]
 
     def __neg__(self)->'MatrixBase':
         return -1.0 * self
 
+    @abstractmethod
+    def asmatrix(self)->np.ndarray:
+        pass
+
+    @abstractmethod
+    def __mul__(self, other: Union[float, complex, np.float64, np.complex128])->'MatrixBase':
+        return NotImplemented
+
+    __rmul__ = __mul__
+
+    @abstractmethod
+    def __matmul__(self, other: Union['MatrixBase', np.ndarray])->Union['MatrixBase',np.ndarray]:
+        return NotImplemented
+
+    @abstractmethod
+    def __add__(self, other: 'MatrixBase')->'MatrixBase':
+        return NotImplemented
+
+    @abstractmethod
+    def conjugate(self)->'MatrixBase':
+        pass
+
+    @property
+    @abstractmethod
+    def T(self)->'MatrixBase':
+        pass
+
+    conj = conjugate
+
     def __sub__(self, other)->'MatrixBase':
         return self + (-other)
 
+    @abstractmethod
     def inv(self)->'MatrixBase':
         pass
 
+    @abstractmethod
     def hash(self)->int:
         pass
 
 class DenseMatrix(MatrixBase):
     def __init__(self, matrix) -> None:
         assert matrix.ndim == 2
-        self.matirx = matrix
+        self.data = matrix
         self.shape = matrix.shape
         self.ndim = 2
-    
+
     def hash(self)->int:
         return matrix_hash(self.asmatrix())
-    
+
     def asmatrix(self)->np.ndarray:
-        return self.matirx
-    
+        return self.data
+
     def inv(self)->'DenseMatrix':
         return DenseMatrix(np.linalg.inv(self.asmatrix()))
-    
+
+    def __neg__(self)->'DenseMatrix':
+        return -1.0 * self
+
     @property
     def T(self):
-        return DenseMatrix(self.matirx.T)
+        return DenseMatrix(self.data.T)
 
     def conjugate(self):
-        return DenseMatrix(self.matirx.conjugate())
-    
+        return DenseMatrix(self.data.conjugate())
+
     conj = conjugate
 
     def __mul__(self, other)->'DenseMatrix':
         if np.isscalar(other):
-            return DenseMatrix(self.matirx * other)
+            return DenseMatrix(self.data * other)
         else:
             return NotImplemented
-    
+
     __rmul__ = __mul__
 
     def __matmul__(self, other)->Union['DenseMatrix', np.ndarray]:
@@ -85,11 +101,15 @@ class DenseMatrix(MatrixBase):
             return self.asmatrix() @ other
         else:
             if isinstance(other, ScaledIdentityMatrix):
-                return DenseMatrix(self.matirx * other.coeff)
+                return self @ other.to_diagonal_matrix()
             elif isinstance(other, DiagonalMatrix):
-                return DenseMatrix(self.matirx * other.diagonals[None,:])
+                res = np.zeros((self.shape[0], other.shape[1]), dtype=np.complex128) # make real if possible
+                min_size = min(*other.shape)
+                res[:, 0:min_size] = \
+                    self.data[:, 0:min_size] * other.diagonals[None,:]
+                return DenseMatrix(res)
             else:
-                return DenseMatrix(self.matirx @ other.asmatrix())
+                return DenseMatrix(self.data @ other.asmatrix())
 
     def __add__(self, other)->'DenseMatrix':
         assert isinstance(other, MatrixBase)
@@ -101,110 +121,136 @@ class DenseMatrix(MatrixBase):
 
 class ScaledIdentityMatrix(MatrixBase):
     """
-    Scaled Identity matrix
+    Scaled Identity matrix with a rectangular shape
     """
     def __init__(
-            self, size: int,
+            self,
+            shape: Union[int, Tuple[int,int]],
             coeff: Union[complex, float, np.float64, np.complex128]
         )->None:
-        assert np.issubdtype(type(size), np.integer)
         assert type(coeff) in [complex, float, np.float64, np.complex128], type(coeff)
-        self.size = size # type: int
+        self.shape = (0,0) # type: Tuple[int, int]
+        if isinstance(shape, int):
+            self.shape = (shape, shape)
+        elif isinstance(shape, tuple):
+            self.shape = shape
+        else:
+            raise ValueError("Invalid shape value!")
         self.coeff = coeff # type: Union[complex, float, np.float64, np.complex128]
         self.ndim = 2 # type: int
-        self.shape = (size, size)
 
     def hash(self)->int:
         return matrix_hash(self.coeff)
-    
+
     def asmatrix(self) -> np.ndarray:
-        return self.coeff * np.identity(self.size)
+        return self.coeff * np.eye(N=self.shape[0], M=self.shape[1])
+
+    def __neg__(self)->'ScaledIdentityMatrix':
+        return -1.0 * self
 
     def inv(self)->'ScaledIdentityMatrix':
-        return ScaledIdentityMatrix(self.size, 1/self.coeff)
+        if not self.is_diagonal():
+            raise RuntimeError("A rectangular matrix is not invertible!")
+        return ScaledIdentityMatrix(self.shape, 1/self.coeff)
 
     @property
-    def T(self)->'ScaledIdentityMatrix':
-        return self
+    def T(self) -> 'ScaledIdentityMatrix':
+        return ScaledIdentityMatrix((self.shape[1], self.shape[0]), self.coeff)
 
     @property
     def diagonals(self)->np.ndarray:
-        return np.full(self.size, self.coeff)
+        if not self.is_diagonal():
+            raise RuntimeError("Diagonals of a rectangular matrix is ill defined!")
+        return np.full(self.shape[0], self.coeff)
 
     def conjugate(self)->'ScaledIdentityMatrix':
-        return ScaledIdentityMatrix(self.size, np.conjugate(self.coeff))
-    
+        return ScaledIdentityMatrix(self.shape, np.conjugate(self.coeff))
+
     conj = conjugate
 
     def __mul__(self, other)->'ScaledIdentityMatrix':
         if type(other) in [complex, float, np.float64, np.complex128]:
-            return ScaledIdentityMatrix(self.size, self.coeff*other)
+            return ScaledIdentityMatrix(self.shape, self.coeff*other)
         else:
             return NotImplemented
-    
+
     __rmul__ = __mul__
- 
+
     def __matmul__(self, other: Union[MatrixBase, np.ndarray])->Union[MatrixBase,np.ndarray]:
         assert self.shape[1] == other.shape[0], f"{self.shape} {other.shape}"
         assert isinstance(other, MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
         return self.coeff * other
 
-    def __add__(self, other)->MatrixBase:
+    def __add__(self, other: MatrixBase)->MatrixBase:
         assert isinstance(other, MatrixBase)
         assert self.shape == other.shape, f"{self.shape} {other.shape}"
 
-        if isinstance(other, DenseMatrix):
-            return DenseMatrix(self.asmatrix() + other.asmatrix())
-        elif isinstance(other, ScaledIdentityMatrix):
-            return ScaledIdentityMatrix(self.size, self.coeff + other.coeff)
+        if isinstance(other, ScaledIdentityMatrix):
+            return ScaledIdentityMatrix(self.shape, self.coeff + other.coeff)
         elif isinstance(other, DiagonalMatrix):
-            return DiagonalMatrix(self.coeff*np.ones(self.size) + other.diagonals)
+            return DiagonalMatrix(self.coeff*np.ones(self.shape[0]) + other.diagonals)
         elif isinstance(other, PartialDiagonalMatrix):
             return PartialDiagonalMatrix(
                 ScaledIdentityMatrix(other.matrix.shape[0], self.coeff) + other.matrix,
                 other.rest_dims)
         else:
-            return NotImplemented
+            return DenseMatrix(self.asmatrix() + other.asmatrix())
 
+    def to_diagonal_matrix(self):
+        """ Convert to a diagonal matrix """
+        return DiagonalMatrix(self.coeff*np.ones(min(*self.shape)), self.shape)
 
 class DiagonalMatrix(MatrixBase):
     """
     Diagonal matrix
     """
-    def __init__(self, diagonals)->None:
+    def __init__(self, diagonals, shape: Optional[Tuple[int,int]] = None)->None:
         assert diagonals.ndim == 1
         self._diagonals = diagonals
         self.ndim = 2
-        self.shape = (diagonals.size, diagonals.size)
+        if shape is None:
+            self.shape = (diagonals.size, diagonals.size)
+        else:
+            self.shape = shape
+        assert min(*self.shape) == diagonals.size, f"{self.shape} {diagonals.size}"
 
     def hash(self) -> int:
         return matrix_hash(self.diagonals)
-    
+
     @property
     def diagonals(self) -> np.ndarray:
         return self._diagonals
-    
+
+    def __neg__(self)->'DiagonalMatrix':
+        return -1.0 * self
+
     def inv(self) -> 'DiagonalMatrix':
+        if not self.is_diagonal():
+            raise RuntimeError("Must be a diagonal matrix!")
         return DiagonalMatrix(1/self.diagonals)
 
     def asmatrix(self) -> np.ndarray:
-        return np.diag(self._diagonals)
+        mat = np.zeros(self.shape, dtype=self.diagonals.dtype)
+        min_size = min(*self.shape)
+        for i in range(min_size):
+            mat[i,i] = self.diagonals[i]
+        return mat
 
     @property
     def T(self) -> 'DiagonalMatrix':
-        return self
-    
+        return DiagonalMatrix(self.diagonals, shape=(self.shape[1], self.shape[0]))
+
     def conjugate(self) -> 'DiagonalMatrix':
-        return DiagonalMatrix(self.diagonals.conjugate())
-    
+        return DiagonalMatrix(self.diagonals.conjugate(), self.shape)
+
     conj = conjugate
 
     def __mul__(self, other) -> 'DiagonalMatrix':
         if type(other) in [complex, float, np.float64, np.complex128]:
-            return DiagonalMatrix(self._diagonals * other)
+            return DiagonalMatrix(self._diagonals * other, self.shape)
         else:
             return NotImplemented
-        
+
     __rmul__ = __mul__
 
     def __add__(self, other) -> MatrixBase:
@@ -231,11 +277,17 @@ class DiagonalMatrix(MatrixBase):
         if isinstance(other, np.ndarray):
             return self._diagonals * other
         elif isinstance(other, DenseMatrix):
-            return DenseMatrix(self._diagonals[:,None] * other.matirx)
+            return DenseMatrix(self._diagonals[:,None] * other.data)
         elif isinstance(other, DiagonalMatrix):
-            return DiagonalMatrix(self._diagonals * other._diagonals)
+            min_size = min(self.shape[0], other.shape[1])
+            return DiagonalMatrix(
+                self._diagonals[0:min_size] * other._diagonals[0:min_size],
+                (self.shape[0], other.shape[1])
+            )
         elif isinstance(other, PartialDiagonalMatrix):
             return DenseMatrix(self._diagonals[:,None] * other.asmatrix())
+        elif isinstance(other, ScaledIdentityMatrix):
+            return self @ other.to_diagonal_matrix()
         else:
             return NotImplemented
 
@@ -258,7 +310,7 @@ class PartialDiagonalMatrix(MatrixBase):
 
     def hash(self) -> int:
         return matrix_hash(self.matrix)
-    
+
     def asmatrix(self) -> np.ndarray:
         return np.einsum(
             'IJ,ij->IiJj',
@@ -266,7 +318,10 @@ class PartialDiagonalMatrix(MatrixBase):
             np.identity(np.prod(self.rest_dims)),
             optimize=True
         ).reshape(self.shape)
-    
+
+    def __neg__(self)->'PartialDiagonalMatrix':
+        return -1.0 * self
+
     def inv(self) -> 'PartialDiagonalMatrix':
         return PartialDiagonalMatrix(self.matrix.inv(), self.rest_dims)
 
@@ -292,26 +347,28 @@ class PartialDiagonalMatrix(MatrixBase):
 
 
     def __mul__(self, other) -> 'PartialDiagonalMatrix':
-        if np.isscalar(other):
+        if type(other) in [float, complex, np.float64, np.complex128]:
             return PartialDiagonalMatrix(self.matrix * other, self.rest_dims)
         else:
             return NotImplemented
 
     __rmul__ = __mul__
-    
+
     def __add__(self, other) -> MatrixBase:
         assert isinstance(other, MatrixBase)
         assert self.shape == other.shape
 
         if isinstance(other, ScaledIdentityMatrix):
             return PartialDiagonalMatrix(
-                self.matrix + ScaledIdentityMatrix(self.matrix.shape[0], other.coeff), self.rest_dims)
+                    self.matrix + ScaledIdentityMatrix(self.matrix.shape, other.coeff),
+                    self.rest_dims
+                )
         else:
             return DenseMatrix(self.asmatrix() + other.asmatrix())
 
-    
+
     def matvec(self, v: np.ndarray) -> np.ndarray:
-        """
+        r"""
         (a \otimes I) @ v
         v can be a vector or a tensor.
         In the latter case, the matrix applied to the first axis of v.
@@ -350,7 +407,7 @@ def matrix_hash(a) -> int:
     else:
         return a.hash()
 
-def asmatrixtype(a):
+def asmatrixtype(a) -> MatrixBase:
     assert isinstance(a, MatrixBase) or (isinstance(a, np.ndarray) and a.ndim==2)
     if isinstance(a, np.ndarray):
         return DenseMatrix(a)

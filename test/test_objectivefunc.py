@@ -2,11 +2,11 @@ import numpy as np
 from scipy.optimize import minimize
 
 from admmsolver.objectivefunc import *
-from admmsolver.matrix import identity, asmatrixtype
+from admmsolver.matrix import identity, asmatrixtype, PartialDiagonalMatrix
 
 import pytest
 
-def _randn_cmplx(*shape):
+def _randn_cmplx(*shape) -> np.ndarray:
     return np.random.randn(*shape) + 1j* np.random.randn(*shape)
 
 def _to_real_array(x):
@@ -22,14 +22,17 @@ def _from_real_array(x):
 
 def _minimize(f, x0, method="BFGS"):
     x0 = _to_real_array(x0)
-    res = minimize(lambda x: f(_from_real_array(x)), x0, method=method)
-    assert res.success
+    res = minimize(
+            lambda x: f(_from_real_array(x)),
+            x0,
+            method=method,
+            options={'maxiter': 100000}
+        )
     return _from_real_array(res.x)
 
-@pytest.mark.parametrize("isolver", [True, False])
-def test_least_squares(isolver):
+def test_least_squares():
     """
-    Least-squares fit with a dense coefficient matrix 
+    Least-squares fit with a dense coefficient matrix
     """
     np.random.seed(100)
     N1, N2 = 4, 2
@@ -39,7 +42,7 @@ def test_least_squares(isolver):
     h = _randn_cmplx(N2)
     sqrt_mu = _randn_cmplx(N2, N2)
     mu = asmatrixtype(sqrt_mu.T.conjugate() @ sqrt_mu)
-    lstsq = LeastSquares(alpha, A, y, isolver=isolver)
+    lstsq = LeastSquares(alpha, A, y)
     x = lstsq.solve(h, mu)
 
     f_all = lambda x: np.real(alpha * np.linalg.norm(y - A @ x)**2 + \
@@ -49,8 +52,7 @@ def test_least_squares(isolver):
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
 
 
-@pytest.mark.parametrize("isolver", [True, False])
-def test_least_squares_partial(isolver):
+def test_least_squares_partial():
     """
     Least-squares fit with a coefficient matrix of type PartialDiagonalMatrix
     """
@@ -64,7 +66,7 @@ def test_least_squares_partial(isolver):
     h = _randn_cmplx(N2)
     sqrt_mu = _randn_cmplx(N2, N2)
     mu = asmatrixtype(sqrt_mu.T.conjugate() @ sqrt_mu)
-    lstsq = LeastSquares(alpha, A, y, isolver=isolver)
+    lstsq = LeastSquares(alpha, A, y)
     x = lstsq.solve(h, mu)
 
     f_all = lambda x: \
@@ -76,8 +78,7 @@ def test_least_squares_partial(isolver):
     np.testing.assert_allclose(f_all(x), f_all(x_ref), rtol=1e-8)
 
 
-@pytest.mark.parametrize("isolver", [True, False])
-def test_constrained_least_squares(isolver):
+def test_constrained_least_squares():
     """
     Linearly constrained least squares
     """
@@ -93,11 +94,11 @@ def test_constrained_least_squares(isolver):
     D = _randn_cmplx(Nc)
     sqrt_mu = _randn_cmplx(N2, N2)
     mu = asmatrixtype(sqrt_mu.T.conjugate() @ sqrt_mu)
-    lstsq = ConstrainedLeastSquares(alpha, A, y, C, D, isolver=isolver)
+    lstsq = ConstrainedLeastSquares(alpha, A, y, C, D)
 
     x = lstsq.solve(h, mu)
     assert np.abs(C@x - D).max() < 1e-10
-    
+ 
     #FIXME: how to check x?
 
 
