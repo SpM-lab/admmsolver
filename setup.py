@@ -16,6 +16,7 @@ def extract_version(*parts):
     initfile = readfile(*parts)
     version_re = re.compile(r"(?m)^__version__\s*=\s*['\"]([^'\"]*)['\"]")
     match = version_re.search(initfile)
+    assert match is not None
     return match.group(1)
 
 
@@ -44,9 +45,7 @@ setup(
         ],
 
     url=REPO_URL,
-    author=[
-        'Hiroshi Shinaoka',
-        ],
+    author="Hiroshi Shinaoka",
     author_email='h.shinaoka@gmail.com',
 
     python_requires='>=3.6',
@@ -61,4 +60,7 @@ setup(
 
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
+    package_data={
+        "admmsolver": ["py.typed"],
+    },
     )
