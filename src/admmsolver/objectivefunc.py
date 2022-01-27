@@ -95,7 +95,7 @@ class LeastSquares(ObjectiveFunctionBase):
             )
         return self._B_cache[1]
 
-    def solve(self, h: Optional[np.ndarray], mu: Optional[MatrixBase]) -> np.ndarray:
+    def solve(self, h: Optional[np.ndarray] = None, mu: Optional[MatrixBase] = None) -> np.ndarray:
         _assert_optional_types(h, [np.ndarray])
         _assert_optional_types(mu, [MatrixBase])
 
@@ -135,7 +135,7 @@ class ConstrainedLeastSquares(LeastSquares):
         self._C = DenseMatrix(C) if isinstance(C, np.ndarray) else C # type: DenseMatrix
         self._D = D
 
-    def solve(self, h: Optional[np.ndarray], mu: Optional[MatrixBase]) -> np.ndarray:
+    def solve(self, h: Optional[np.ndarray] = None, mu: Optional[MatrixBase] = None) -> np.ndarray:
         _assert_optional_types(h, [np.ndarray])
         _assert_optional_types(mu, [MatrixBase])
 
@@ -156,34 +156,6 @@ class ConstrainedLeastSquares(LeastSquares):
         nu = tmp1 @ tmp2
         return xi1 + xi2 @ nu
 
-def _isolve(alpha, mat, mu, b: Union[np.ndarray, DenseMatrix]):
-    """
-    Solve (alpha * mat + mu * I)^{-1} @ b,
-    wehre v is a matrix.
-    """
-    _assert_types(b, [np.ndarray, DenseMatrix])
-    if isinstance(b, DenseMatrix):
-        b = b.asmatrix()
-    b_ = b
-    if b_.ndim == 1:
-        b_ = b_[:,None]
-
-    def matvec(v):
-        v = v.reshape(b_.shape)
-        return alpha * (mat @ v).ravel() + (mu @ v).ravel()
-
-    op = LinearOperator(
-            dtype=np.complex128,
-            shape=tuple(np.array(mat.shape) * b_.shape[1]),
-            matvec=matvec
-        )
-    res = lgmres(op, b.ravel())[0]
-    if b.ndim == 1:
-        res = res.ravel()
-    else:
-        res = res.reshape(-1, b.shape[1])
-    return res
-
 
 class L1Regularizer(ObjectiveFunctionBase):
     """
@@ -200,8 +172,8 @@ class L1Regularizer(ObjectiveFunctionBase):
 
     def solve(
         self,
-        h: Optional[np.ndarray],
-        mu: Optional[MatrixBase]) -> np.ndarray:
+        h: Optional[np.ndarray] = None,
+        mu: Optional[MatrixBase] = None) -> np.ndarray:
         """
         x <- argmin_x alpha * |x|_1 + h^+ x + x^+ h + mu x^+ x
 
@@ -252,8 +224,8 @@ class L2Regularizer(ObjectiveFunctionBase):
         return self._B_cache[1]
 
     def solve(self,
-        h: Optional[np.ndarray],
-        mu: Union[None, MatrixBase]):
+        h: Optional[np.ndarray] = None,
+        mu: Optional[MatrixBase] = None):
         """
         x <- argmin_x alpha * x^+ (A^+ A) x + h^+ x + x^+ h + x^+ mu x
             = - (alpha A^+ A + mu)^{-1} h
@@ -280,7 +252,7 @@ class NonNegativePenalty(ObjectiveFunctionBase):
     def __call__(self, x: np.ndarray):
         return 0.0
 
-    def solve(self, h: Optional[np.ndarray], mu: Optional[MatrixBase]):
+    def solve(self, h: Optional[np.ndarray] = None, mu: Optional[MatrixBase] = None):
         """
         This function works only if all the following conditions are met:
           * h and x are real vectors
@@ -314,7 +286,7 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
     def __call__(self, x: np.ndarray):
         return 0.0
 
-    def solve(self, h : Optional[np.ndarray], mu: Optional[MatrixBase]):
+    def solve(self, h : Optional[np.ndarray] = None, mu: Optional[MatrixBase] = None):
         """
         This function works only if mu is a diagonal matrix
         mu must be regarded as a diagonal matrix
