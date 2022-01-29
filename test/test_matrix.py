@@ -1,7 +1,7 @@
 from admmsolver.matrix import *
-from admmsolver.matrix import MatrixBase
+from admmsolver.matrix import MatrixBase, _vecprod, _pad_by_zero
 import numpy as np
-from typing import Tuple
+from typing import Tuple, cast
 import pytest
 
 def _randn_cmplx(*shape) -> np.ndarray:
@@ -158,3 +158,27 @@ def test_matvec_rectangular(n, m):
         mv = m @ vec
         assert isinstance(mv, np.ndarray)
         np.testing.assert_allclose(mv, m.asmatrix()@vec)
+
+def test_matmal_diagonal():
+    np.random.seed(100)
+    a = DiagonalMatrix(np.random.randn(2), shape=(4,2))
+    b = DiagonalMatrix(np.random.randn(2), shape=(2,4))
+
+    ab = cast(DiagonalMatrix, a @ b)
+    ab_ref = np.zeros(4)
+    ab_ref[0:2] = a.diagonals * b.diagonals
+
+    np.testing.assert_allclose(ab.diagonals, ab_ref)
+
+def test_vecprod():
+    np.testing.assert_allclose(
+        _vecprod(np.ones(1), np.ones(2), 3),
+        np.array([1,0,0])
+    )
+
+
+def test_pad_by_zero():
+    np.testing.assert_allclose(
+        _pad_by_zero(np.ones(1), 3),
+        np.array([1,0,0])
+    )

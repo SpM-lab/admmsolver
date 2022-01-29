@@ -285,7 +285,7 @@ class DiagonalMatrix(MatrixBase):
         elif isinstance(other, DiagonalMatrix):
             min_size = min(self.shape[0], other.shape[1])
             return DiagonalMatrix(
-                self._diagonals[0:min_size] * other._diagonals[0:min_size],
+                _vecprod(self._diagonals, other._diagonals, min_size),
                 (self.shape[0], other.shape[1])
             )
         elif isinstance(other, PartialDiagonalMatrix):
@@ -416,3 +416,24 @@ def asmatrixtype(a) -> MatrixBase:
     if isinstance(a, np.ndarray):
         return DenseMatrix(a)
     return a
+
+
+def _vecprod(v1: np.ndarray, v2: np.ndarray, size=Optional[int]):
+    """
+    Elementwise product of two vectors.
+    If v1.size < size and v2.size, the result is padded on the right
+    so that the returned array is size.
+    """
+    assert isinstance(v1, np.ndarray)
+    assert isinstance(v2, np.ndarray)
+    min_size = min(v1.size, v2.size)
+    res = v1[0:min_size] * v2[0:min_size]
+    return _pad_by_zero(res, size)
+
+def _pad_by_zero(arr: np.ndarray, size: int):
+    assert arr.size <= size
+    if arr.size == size:
+        return arr
+    res = np.zeros(size, dtype=arr.dtype)
+    res[0:arr.size] = arr
+    return res
