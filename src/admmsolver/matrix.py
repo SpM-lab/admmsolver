@@ -179,7 +179,7 @@ class ScaledIdentityMatrix(MatrixBase):
     def __matmul__(self, other: Union[MatrixBase, np.ndarray])->Union[MatrixBase,np.ndarray]:
         assert self.shape[1] == other.shape[0], f"{self.shape} {other.shape}"
         assert isinstance(other, MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
-        return self.coeff * other
+        return self.to_diagonal_matrix() @ other
 
     def __add__(self, other: MatrixBase)->MatrixBase:
         assert isinstance(other, MatrixBase)
@@ -275,7 +275,11 @@ class DiagonalMatrix(MatrixBase):
         assert isinstance(other, MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
 
         if isinstance(other, np.ndarray):
-            return self._diagonals * other
+            dtype = np.dtype(type(self._diagonals[0] * other[0]))
+            res = np.zeros(self.shape[0], dtype=dtype)
+            min_len = min(self._diagonals.size, other.size)
+            res[0:min_len] = self._diagonals[0:min_len] * other[0:min_len]
+            return res
         elif isinstance(other, DenseMatrix):
             return DenseMatrix(self._diagonals[:,None] * other.data)
         elif isinstance(other, DiagonalMatrix):

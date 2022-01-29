@@ -22,6 +22,7 @@ RUN apt-get update && \
 RUN pip3 install --upgrade pip setuptools
 RUN pip3 install numpy scipy matplotlib ipykernel jupyterlab sparse-ir -U
 
+# Install requirement
 RUN mkdir /tmp/setup
 WORKDIR /tmp/setup
 COPY ./ .
