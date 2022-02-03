@@ -131,6 +131,7 @@ def test_matvec():
     mat.append(DiagonalMatrix(np.ones(n)))
     mat.append(ScaledIdentityMatrix(n, 1+1j))
     mat.append(PartialDiagonalMatrix(_randn_cmplx(2, 2), (2,)))
+    mat.append(PartialDiagonalMatrix(ScaledIdentityMatrix(2, 1.0), (2,)))
     mat.append(DenseMatrix(_randn_cmplx(n, n)))
 
     vec = np.ones(n)

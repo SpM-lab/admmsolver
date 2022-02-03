@@ -394,6 +394,8 @@ def _matvec_impl(
             v,
             axes=(-1,0)
         ).ravel()
+    elif isinstance(matrix, ScaledIdentityMatrix):
+        return matrix.coeff * v.ravel()
     else:
         raise RuntimeError(f"Unsupported type{type(matrix)}!")
 
