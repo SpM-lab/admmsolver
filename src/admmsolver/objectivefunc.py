@@ -293,7 +293,8 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
         """
         assert isinstance(h, np.ndarray)
         assert isinstance(mu, DiagonalMatrix) or isinstance(mu, ScaledIdentityMatrix) or \
-            (isinstance(mu, PartialDiagonalMatrix) and isinstance(mu.matrix, ScaledIdentityMatrix))
+            (isinstance(mu, PartialDiagonalMatrix) and isinstance(mu.matrix, ScaledIdentityMatrix)) or \
+            (isinstance(mu, PartialDiagonalMatrix) and isinstance(mu.matrix, DiagonalMatrix))
         if mu is None:
             raise ValueError("mu must not be None!")
 
@@ -301,9 +302,10 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
         if isinstance(mu, DiagonalMatrix) or isinstance(mu, ScaledIdentityMatrix):
             diagonals = mu.diagonals
         elif isinstance(mu.matrix, ScaledIdentityMatrix):
-            assert mu.matrix.shape[0] == mu.matrix.shape[1]
             diagonals = np.full(mu.shape[0], mu.matrix.coeff)
-        assert diagonals is not None
+        elif isinstance(mu.matrix, DiagonalMatrix):
+            diagonals = np.einsum('i,j->ij', mu.matrix.diagonals, np.ones(np.prod(mu.rest_dims))).ravel()
+        assert diagonals is not None and diagonals.ndim == 1, diagonals.shape
 
 
         if h is None:
