@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize
+from typing import cast
 
 from admmsolver.objectivefunc import *
 from admmsolver.matrix import identity, asmatrixtype, PartialDiagonalMatrix
@@ -98,7 +99,7 @@ def test_constrained_least_squares():
 
     x = lstsq.solve(h, mu)
     assert np.abs(C@x - D).max() < 1e-10
- 
+
     #FIXME: how to check x?
 
 
@@ -114,7 +115,7 @@ def test_L1():
 
     l1 = L1Regularizer(alpha, N)
     x = l1.solve(h, mu)
-    
+
     # Naive optimization
     for i in range(N):
         f = lambda x: alpha * np.abs(x) + 2*h[i]*x + mu.diagonals[i] * x**2
@@ -157,12 +158,12 @@ def test_L2():
 
     l2 = L2Regularizer(alpha, A)
     x = l2.solve(h, mu)
-    
+
     # Naive optimization
     f = lambda x: alpha * np.linalg.norm(A @ x)**2 + \
         2*np.real(h.conjugate().T @ x) + np.real(x.conjugate().T @ (mu @ x))
     x_ref = _minimize(f, x, method="BFGS")
-    np.testing.assert_allclose(x, x_ref, atol=np.abs(x_ref).max()*1e-5, rtol=0)
+    np.testing.assert_allclose(cast(np.ndarray, x), x_ref, atol=np.abs(x_ref).max()*1e-5, rtol=0)
 
 
 def test_semi_positive_definite_penalty():
@@ -171,13 +172,15 @@ def test_semi_positive_definite_penalty():
     N = 10
 
     h = _randn_cmplx(N**2 * K)
-    mu = asmatrixtype(identity(N**2 * K))
 
-    p = SemiPositiveDefinitePenalty((N,N,K), axis=2)
-    res = p.solve(h, mu)
+    for mu in [
+        asmatrixtype(identity(N**2 * K)),
+        PartialDiagonalMatrix(ScaledIdentityMatrix(N**2, 1.0), (K,))]:
+        p = SemiPositiveDefinitePenalty((N,N,K), axis=2)
+        res = p.solve(h, mu)
 
-    x = res.reshape((N,N,K))
-    for k in range(K):
-        evals, evecs = np.linalg.eigh(x[:,:,k])
-        assert all(evals > -1e-10)
+        x = res.reshape((N,N,K))
+        for k in range(K):
+            evals, evecs = np.linalg.eigh(x[:,:,k])
+            assert all(evals > -1e-10)
 

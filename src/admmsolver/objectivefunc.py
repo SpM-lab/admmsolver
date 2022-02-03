@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import numpy as np
-from .matrix import DenseMatrix, DiagonalMatrix, ScaledIdentityMatrix, asmatrixtype, matrix_hash, MatrixBase
+from .matrix import DenseMatrix, DiagonalMatrix, PartialDiagonalMatrix, ScaledIdentityMatrix, asmatrixtype, matrix_hash, MatrixBase
 from typing import Sequence, Union, Optional, Tuple, cast, Iterable
 from scipy.sparse.linalg import lgmres, LinearOperator
 
@@ -292,16 +292,28 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
         mu must be regarded as a diagonal matrix
         """
         assert isinstance(h, np.ndarray)
-        assert isinstance(mu, DiagonalMatrix) or isinstance(mu, ScaledIdentityMatrix)
+        assert isinstance(mu, DiagonalMatrix) or isinstance(mu, ScaledIdentityMatrix) or \
+            (isinstance(mu, PartialDiagonalMatrix) and isinstance(mu.matrix, ScaledIdentityMatrix))
+        if mu is None:
+            raise ValueError("mu must not be None!")
+
+        diagonals = None
+        if isinstance(mu, DiagonalMatrix) or isinstance(mu, ScaledIdentityMatrix):
+            diagonals = mu.diagonals
+        elif isinstance(mu.matrix, ScaledIdentityMatrix):
+            assert mu.matrix.shape[0] == mu.matrix.shape[1]
+            diagonals = np.full(mu.shape[0], mu.matrix.coeff)
+        assert diagonals is not None
+
 
         if h is None:
             h = np.zeros(np.prod(self._shape))
         elif np.iscomplexobj(h):
             h = h.real
-        if mu is None:
-            raise ValueError("mu must not be None!")
 
-        x_ = (-(h/mu.diagonals)).reshape(self._shape)
+        assert diagonals.size == h.size
+
+        x_ = (-(h/diagonals)).reshape(self._shape)
         x_ = np.moveaxis(x_, self._axis, 0)
         for i in range(x_.shape[0]):
             evals, evecs = np.linalg.eigh(x_[i,:,:])
