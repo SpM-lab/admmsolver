@@ -305,7 +305,8 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
             diagonals = np.full(mu.shape[0], mu.matrix.coeff)
         elif isinstance(mu.matrix, DiagonalMatrix):
             diagonals = np.einsum('i,j->ij', mu.matrix.diagonals, np.ones(np.prod(mu.rest_dims))).ravel()
-        assert diagonals is not None and diagonals.ndim == 1, diagonals.shape
+        assert diagonals is not None
+        assert diagonals.ndim == 1, diagonals.shape
 
 
         if h is None:

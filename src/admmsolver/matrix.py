@@ -178,7 +178,7 @@ class ScaledIdentityMatrix(MatrixBase):
 
     def __matmul__(self, other: Union[MatrixBase, np.ndarray])->Union[MatrixBase,np.ndarray]:
         assert self.shape[1] == other.shape[0], f"{self.shape} {other.shape}"
-        assert isinstance(other, MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
+        assert isinstance(other, MatrixBase) or isinstance(other, np.ndarray)
         return self.to_diagonal_matrix() @ other
 
     def __add__(self, other: MatrixBase)->MatrixBase:
@@ -393,18 +393,25 @@ def _matvec_impl(
         v: np.ndarray,
         rest_dims: tuple
     ) -> np.ndarray:
+
+    res_leading_dim = matrix.shape[0] * np.prod(rest_dims)
+    res_shape = (0,) # type: Tuple[int,...]
+    if v.ndim == 1:
+        res_shape = (res_leading_dim,)
+    else:
+        res_shape = (res_leading_dim,) + v.shape[1:]
+
     v = v.reshape(matrix.shape[1], *rest_dims, -1)
     if isinstance(matrix, DiagonalMatrix):
-        #return np.einsum('d,d...->d...', matrix.diagonals, v).ravel()
-        return cast(np.ndarray, matrix @ v).ravel()
+        return cast(np.ndarray, matrix @ v).reshape(res_shape)
     elif isinstance(matrix, DenseMatrix):
         return np.tensordot(
             matrix.asmatrix(),
             v,
             axes=(-1,0)
-        ).ravel()
+        ).reshape(res_shape)
     elif isinstance(matrix, ScaledIdentityMatrix):
-        return matrix.coeff * v.ravel()
+        return (matrix.coeff * v.ravel()).reshape(res_shape)
     else:
         raise RuntimeError(f"Unsupported type{type(matrix)}!")
 
