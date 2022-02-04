@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import numpy as np
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, cast
 from abc import abstractmethod
 
 class MatrixBase(object):
@@ -272,14 +272,22 @@ class DiagonalMatrix(MatrixBase):
     def __matmul__(self, other: Union[MatrixBase, np.ndarray]) -> Union[MatrixBase, np.ndarray]:
         """ self @ other """
         assert self.shape[1] == other.shape[0]
-        assert isinstance(other, MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
+        assert isinstance(other, MatrixBase) or isinstance(other, np.ndarray)
 
         if isinstance(other, np.ndarray):
-            dtype = np.dtype(type(self._diagonals[0] * other[0]))
-            res = np.zeros(self.shape[0], dtype=dtype)
-            min_len = min(self._diagonals.size, other.size)
-            res[0:min_len] = self._diagonals[0:min_len] * other[0:min_len]
-            return res
+            dtype = np.dtype(type(self._diagonals[0] * other.ravel()[0]))
+            if other.ndim == 1:
+                res = np.zeros(self.shape[0], dtype=dtype)
+                min_len = min(self._diagonals.size, other.size)
+                res[0:min_len] = self._diagonals[0:min_len] * other[0:min_len]
+                return res
+            else:
+                rest_dim = other.shape[1:]
+                res = np.zeros((self.shape[0],) + rest_dim, dtype=dtype)
+                min_len = min(self._diagonals.size, other.size)
+                res[0:min_len, ...] = \
+                    np.einsum('d,d...->d...', self._diagonals[0:min_len], other[0:min_len, ...], optimize=True)
+                return res
         elif isinstance(other, DenseMatrix):
             return DenseMatrix(self._diagonals[:,None] * other.data)
         elif isinstance(other, DiagonalMatrix):
@@ -387,7 +395,8 @@ def _matvec_impl(
     ) -> np.ndarray:
     v = v.reshape(matrix.shape[1], *rest_dims, -1)
     if isinstance(matrix, DiagonalMatrix):
-        return np.einsum('d,d...->d...', matrix.diagonals, v).ravel()
+        #return np.einsum('d,d...->d...', matrix.diagonals, v).ravel()
+        return cast(np.ndarray, matrix @ v).ravel()
     elif isinstance(matrix, DenseMatrix):
         return np.tensordot(
             matrix.asmatrix(),
