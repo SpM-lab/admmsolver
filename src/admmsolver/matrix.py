@@ -418,6 +418,8 @@ def _matvec_impl(
 
 def identity(n, dtype=np.float64) -> ScaledIdentityMatrix:
     """ Create an identity matrix """
+    n = int(n)
+    assert isinstance(n, int), n
     return ScaledIdentityMatrix(n, dtype(1.0))
 
 

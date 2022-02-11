@@ -162,7 +162,8 @@ class L1Regularizer(ObjectiveFunctionBase):
     L1 regularization
         F(x) = alpha * |x|_1
     """
-    def __init__(self, alpha, size_x) -> None:
+    def __init__(self, alpha: float, size_x: int) -> None:
+        assert isinstance(size_x, int), type(size_x)
         super().__init__(size_x)
         assert alpha > 0
         self._alpha = alpha
