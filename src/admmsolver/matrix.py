@@ -59,7 +59,8 @@ class MatrixBase(object):
         pass
 
 class DenseMatrix(MatrixBase):
-    def __init__(self, matrix) -> None:
+    def __init__(self, matrix: np.ndarray) -> None:
+        assert isinstance(matrix, np.ndarray)
         assert matrix.ndim == 2
         self.data = matrix
         self.shape = matrix.shape
