@@ -63,7 +63,7 @@ class DenseMatrix(MatrixBase):
         assert isinstance(matrix, np.ndarray)
         assert matrix.ndim == 2
         self.data = matrix
-        self.shape = matrix.shape
+        self.shape = cast(Tuple[int,int], matrix.shape)
         self.ndim = 2
 
     def hash(self)->int:
