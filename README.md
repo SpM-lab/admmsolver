@@ -1,5 +1,10 @@
 A fast and general ADMM solver
 =======================================================================
+# Installation
+
+```
+pip3 install admmsolver
+```
 
 # Implementation note
 [Implementation note](https://www.overleaf.com/read/fxbjmzsvwtgh)
