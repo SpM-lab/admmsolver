@@ -9,18 +9,20 @@ from .objectivefunc import ObjectiveFunctionBase
 from .matrix import MatrixBase, PartialDiagonalMatrix, asmatrixtype
 from .util import norm
 
+
 class EqualityCondition(object):
     """
     Equality condition:
         E1 @ x_{i1} - E2 @ x_{i2} = 0,
     where i != j.
     """
+
     def __init__(self,
-        i1: int,
-        i2: int,
-        E1: Union[np.ndarray, MatrixBase],
-        E2: Union[np.ndarray, MatrixBase]
-        ) -> None:
+                 i1: int,
+                 i2: int,
+                 E1: Union[np.ndarray, MatrixBase],
+                 E2: Union[np.ndarray, MatrixBase]
+                 ) -> None:
         assert i1 != i2, "i1 != i2!"
         assert E1.shape[0] == E2.shape[0], "Leading dimensions of E1 and E2 do not match!"
         assert E1.ndim == 2
@@ -37,11 +39,12 @@ class EqualityCondition(object):
     def size(self) -> int:
         return self.E1.shape[0]
 
+
 class Model(object):
     def __init__(self,
-        functions: Sequence[ObjectiveFunctionBase],
-        equality_conditons: Union[tuple, List[EqualityCondition]] =[]
-        ) -> None:
+                 functions: Sequence[ObjectiveFunctionBase],
+                 equality_conditons: Union[tuple, List[EqualityCondition]] = []
+                 ) -> None:
         """
         functions: list of instances of subclasses of ObjectiveFunctionBase
             Define the cost function as the sum of the given functions.
@@ -102,19 +105,20 @@ class SimpleOptimizer(object):
     """
     The simplest ADMM solver
     """
-    def __init__(self, model: Model, x0=None, mu=None, max_mu: float =1e+3) -> None:
+
+    def __init__(self, model: Model, x0=None, mu=None, max_mu: float = 1e+3) -> None:
         """
         model:
-           Model to be solved.
+            Model to be solved.
 
         x0: None or list of 1D array
-           Initial guesses for variables `x_i`
-        
+            Initial guesses for variables `x_i`
+
         mu: float
-           Penalty term
+            Penalty term
 
         max_mu:
-           Max value of mu
+            Max value of mu
         """
         assert isinstance(model, Model)
         num_func = model.num_func
@@ -129,29 +133,28 @@ class SimpleOptimizer(object):
             self._x = [x_.copy() for x_ in x0]
         else:
             self._x = [np.zeros(model.functions[k].size_x, dtype=np.complex128)
-               for k in range(num_func)]
-        
+                        for k in range(num_func)]
+
         if mu is None:
             mu = 1.0
         for i, j in product(range(num_func), repeat=2):
-            if model.E[i,j] is None or i <= j:
+            if model.E[i, j] is None or i <= j:
                 continue
-            self._h[i,j] = np.zeros(model.E[i,j].shape[0], dtype=np.complex128)
-            self._mu[i,j] = mu
-        
-        self._primal_residual = [] # type: List[float]
-        self._dual_residual = [] # type: List[float]
+            self._h[i, j] = np.zeros(
+                model.E[i, j].shape[0], dtype=np.complex128)
+            self._mu[i, j] = mu
 
-    
+        self._primal_residual = []  # type: List[float]
+        self._dual_residual = []  # type: List[float]
+
     @property
     def x(self) -> List[np.ndarray]:
         return self._x
-    
-    
+
     def __call__(self, x: List[np.ndarray]) -> float:
         """Evaluate the cost function"""
         return float(np.sum([f(x_) for x_, f in zip(x, self._model.functions)]))
-    
+
     def _hk(self, k: int) -> Optional[np.ndarray]:
         """ Compute `h` for optimizing `x_k` """
         res = []
@@ -160,23 +163,25 @@ class SimpleOptimizer(object):
 
         # i < k
         for i in range(k):
-            if self._h[k,i] is None:
+            if self._h[k, i] is None:
                 continue
             res.append(
-                E[i,k].T.conjugate() @ self._h[k,i]
-                - self._mu[k,i] * E[i,k].T.conjugate()@ (E[k,i] @ self._x[i])
-                )
+                E[i, k].T.conjugate() @ self._h[k, i]
+                - self._mu[k, i] * E[i, k].T.conjugate() @ (E[k, i]
+                                                            @ self._x[i])
+            )
             assert res[-1].size == self._model.functions[k].size_x, \
                 f"{res[-1].size} {self._model.functions[k].size_x}"
 
         # k < i
         for i in range(k+1, self._model.num_func):
-            if self._h[i,k] is None:
+            if self._h[i, k] is None:
                 continue
             res.append(
-                    - E[i,k].T.conjugate() @ self._h[i,k]
-                    - self._mu[i,k] * E[i,k].T.conjugate() @ (E[k,i] @ self._x[i])
-                )
+                - E[i, k].T.conjugate() @ self._h[i, k]
+                - self._mu[i, k] * E[i, k].T.conjugate() @ (E[k, i]
+                                                            @ self._x[i])
+            )
             assert res[-1].size == self._model.functions[k].size_x, \
                 f"{res[-1].size} {self._model.functions[k].size_x}"
 
@@ -193,32 +198,34 @@ class SimpleOptimizer(object):
         res = []
         # i < k
         for i in range(k):
-            if self._h[k,i] is None:
+            if self._h[k, i] is None:
                 continue
-            res.append(self._mu[k,i] * E[i,k].T.conjugate() @ E[i,k])
+            res.append(self._mu[k, i] * E[i, k].T.conjugate() @ E[i, k])
 
         # k < i
         for i in range(k+1, self._model.num_func):
-            if self._h[i,k] is None:
+            if self._h[i, k] is None:
                 continue
-            res.append(self._mu[i,k] * E[i,k].T.conjugate() @ E[i,k])
-        
+            res.append(self._mu[i, k] * E[i, k].T.conjugate() @ E[i, k])
+
         if len(res) > 0:
             return _sum(res)
         else:
             return None
- 
+
     def check_convergence(self, rtol) -> bool:
         """ Check convergence """
         converged = True
         for i, j in product(range(self._model.num_func), repeat=2):
-            if self._model.E[i,j] is None or i <= j:
+            if self._model.E[i, j] is None or i <= j:
                 continue
-            primal1 = cast(np.ndarray, self._model.E[i,j] @ self._x[j])
-            primal2 = cast(np.ndarray, self._model.E[j,i] @ self._x[i])
+            primal1 = cast(np.ndarray, self._model.E[i, j] @ self._x[j])
+            primal2 = cast(np.ndarray, self._model.E[j, i] @ self._x[i])
             d_primal = cast(np.ndarray, primal1 - primal2)
-            dual1 = self._mu[i,j] * self._model.E[j,i] @ (self._model.E[i,j] @ self._x[j])
-            dual2 = self._mu[i,j] * self._model.E[j,i] @ (self._model.E[i,j] @ self._x_old[j])
+            dual1 = self._mu[i, j] * self._model.E[j, i] \
+                @ (self._model.E[i, j] @ self._x[j])
+            dual2 = self._mu[i, j] * self._model.E[j, i] \
+                @ (self._model.E[i, j] @ self._x_old[j])
             d_dual = cast(np.ndarray, dual1 - dual2)
             converged = converged and \
                 norm(d_primal)/max(norm(primal1), norm(primal2)) < rtol
@@ -233,59 +240,61 @@ class SimpleOptimizer(object):
         primal = 0.0
         dual = 0.0
         for i, j in product(range(num_func), repeat=2):
-            if self._model.E[i,j] is None or i <= j:
+            if self._model.E[i, j] is None or i <= j:
                 continue
             primal += \
                 float(
                     np.linalg.norm(
-                        self._model.E[i,j]@self._x[j] - self._model.E[j,i]@self._x[i]
+                        self._model.E[i, j]@self._x[j] -
+                        self._model.E[j, i]@self._x[i]
                     )
                 )
             dual += \
                 float(
                     np.linalg.norm(
-                        self._mu[i,j] * (
-                            self._model.E[j,i] @
-                            self._model.E[i,j] @ (self._x[j] - self._x_old[j])
+                        self._mu[i, j] * (
+                            self._model.E[j, i] @
+                            self._model.E[i, j] @ (self._x[j] - self._x_old[j])
                         )
                     )
                 )
         return primal, dual
 
-
-    def update_mu(self, fact_incr: float = 2.0, th_change: float = 10.0) -> None:
+    def update_mu(
+            self,
+            fact_incr: float = 2.0,
+            th_change: float = 10.0) -> None:
         """ Update mu based on primal residual and dual residual"""
         num_func = self._model.num_func
         for i, j in product(range(num_func), repeat=2):
-            if self._model.E[i,j] is None or i <= j:
+            if self._model.E[i, j] is None or i <= j:
                 continue
             primal = \
                 np.linalg.norm(
-                    self._model.E[i,j]@self._x[j] - 
-                       self._model.E[j,i]@self._x[i]
+                    self._model.E[i, j]@self._x[j] -
+                    self._model.E[j, i]@self._x[i]
                 )
             dual = \
                 np.linalg.norm(
-                    self._mu[i,j] * (
-                        self._model.E[j,i] @
-                            self._model.E[i,j] @ (self._x[j] - self._x_old[j])
+                    self._mu[i, j] * (
+                        self._model.E[j, i] @
+                        self._model.E[i, j] @ (self._x[j] - self._x_old[j])
                     )
                 )
             if primal > th_change * dual:
-                self._mu[i,j] *= fact_incr
+                self._mu[i, j] *= fact_incr
             if dual > th_change * primal:
-                self._mu[i,j] /= fact_incr
-            self._mu[i,j] = min(self._mu[i,j], self._max_mu)
-        
+                self._mu[i, j] /= fact_incr
+            self._mu[i, j] = min(self._mu[i, j], self._max_mu)
 
     def solve(
-            self,
-            niter:int =10000,
-            callback=None,
-            interval_update_mu:int =100,
-            update_h: bool = True,
-            rtol: float = 1e-12
-        ) -> None:
+        self,
+        niter: int = 10000,
+        callback=None,
+        interval_update_mu: int = 100,
+        update_h: bool = True,
+        rtol: float = 1e-12
+    ) -> None:
         for iter in range(niter):
             self.one_sweep(update_h=update_h)
             primal, dual = self.residual()
@@ -313,10 +322,10 @@ class SimpleOptimizer(object):
         if update_h:
             for i in range(self._model.num_func):
                 for j in range(i):
-                    if self._h[i,j] is not None:
-                        self._h[i,j] += self._mu[i,j] * (
-                            (self._model.E[j,i]@self._x[i]) -
-                            (self._model.E[i,j]@self._x[j])
+                    if self._h[i, j] is not None:
+                        self._h[i, j] += self._mu[i, j] * (
+                            (self._model.E[j, i]@self._x[i]) -
+                            (self._model.E[i, j]@self._x[j])
                         )
 
 
