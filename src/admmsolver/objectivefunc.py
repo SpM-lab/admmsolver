@@ -118,7 +118,7 @@ class ConstrainedLeastSquares(LeastSquares):
             alpha: float,
             A: Union[np.ndarray, MatrixBase],
             y: np.ndarray,
-            C: Union[np.ndarray, DenseMatrix],
+            C: Union[np.ndarray, MatrixBase],
             D: np.ndarray
         ) -> None:
         assert A.ndim == 2
@@ -129,10 +129,10 @@ class ConstrainedLeastSquares(LeastSquares):
         assert A.shape[1] == C.shape[1]
         assert C.shape[0] == D.size
         _assert_types(A, [np.ndarray, MatrixBase])
-        _assert_types(C, [np.ndarray, DenseMatrix])
+        _assert_types(C, [np.ndarray, MatrixBase])
         super().__init__(alpha, asmatrixtype(A), y)
 
-        self._C = DenseMatrix(C) if isinstance(C, np.ndarray) else C # type: DenseMatrix
+        self._C = DenseMatrix(C) if isinstance(C, np.ndarray) else C # type: MatrixBase
         self._D = D
 
     def solve(self, h: Optional[np.ndarray] = None, mu: Optional[MatrixBase] = None) -> np.ndarray:
@@ -145,7 +145,7 @@ class ConstrainedLeastSquares(LeastSquares):
         if mu is None:
             mu = ScaledIdentityMatrix(self._Nx, 0.0)
         assert mu.shape == (self._Nx, self._Nx)
-        Ch = self._C.conjugate().T # type: DenseMatrix
+        Ch = self._C.conjugate().T # type: MatrixBase
         B =  self._get_B(mu)
         xi1 = cast(np.ndarray, B @ (self._alpha * (self._Ac @ self._y) - h))
         assert isinstance(xi1, np.ndarray)
