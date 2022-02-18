@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import numpy as np
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, cast
 from abc import abstractmethod
 
 class MatrixBase(object):
@@ -59,10 +59,11 @@ class MatrixBase(object):
         pass
 
 class DenseMatrix(MatrixBase):
-    def __init__(self, matrix) -> None:
+    def __init__(self, matrix: np.ndarray) -> None:
+        assert isinstance(matrix, np.ndarray)
         assert matrix.ndim == 2
         self.data = matrix
-        self.shape = matrix.shape
+        self.shape = cast(Tuple[int,int], matrix.shape)
         self.ndim = 2
 
     def hash(self)->int:
@@ -178,7 +179,7 @@ class ScaledIdentityMatrix(MatrixBase):
 
     def __matmul__(self, other: Union[MatrixBase, np.ndarray])->Union[MatrixBase,np.ndarray]:
         assert self.shape[1] == other.shape[0], f"{self.shape} {other.shape}"
-        assert isinstance(other, MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
+        assert isinstance(other, MatrixBase) or isinstance(other, np.ndarray)
         return self.to_diagonal_matrix() @ other
 
     def __add__(self, other: MatrixBase)->MatrixBase:
@@ -272,14 +273,22 @@ class DiagonalMatrix(MatrixBase):
     def __matmul__(self, other: Union[MatrixBase, np.ndarray]) -> Union[MatrixBase, np.ndarray]:
         """ self @ other """
         assert self.shape[1] == other.shape[0]
-        assert isinstance(other, MatrixBase) or (isinstance(other, np.ndarray) and other.ndim==1)
+        assert isinstance(other, MatrixBase) or isinstance(other, np.ndarray)
 
         if isinstance(other, np.ndarray):
-            dtype = np.dtype(type(self._diagonals[0] * other[0]))
-            res = np.zeros(self.shape[0], dtype=dtype)
-            min_len = min(self._diagonals.size, other.size)
-            res[0:min_len] = self._diagonals[0:min_len] * other[0:min_len]
-            return res
+            dtype = np.dtype(type(self._diagonals[0] * other.ravel()[0]))
+            if other.ndim == 1:
+                res = np.zeros(self.shape[0], dtype=dtype)
+                min_len = min(self._diagonals.size, other.size)
+                res[0:min_len] = self._diagonals[0:min_len] * other[0:min_len]
+                return res
+            else:
+                rest_dim = other.shape[1:]
+                res = np.zeros((self.shape[0],) + rest_dim, dtype=dtype)
+                min_len = min(self._diagonals.size, other.size)
+                res[0:min_len, ...] = \
+                    np.einsum('d,d...->d...', self._diagonals[0:min_len], other[0:min_len, ...], optimize=True)
+                return res
         elif isinstance(other, DenseMatrix):
             return DenseMatrix(self._diagonals[:,None] * other.data)
         elif isinstance(other, DiagonalMatrix):
@@ -385,22 +394,32 @@ def _matvec_impl(
         v: np.ndarray,
         rest_dims: tuple
     ) -> np.ndarray:
+
+    res_leading_dim = matrix.shape[0] * np.prod(rest_dims)
+    res_shape = (0,) # type: Tuple[int,...]
+    if v.ndim == 1:
+        res_shape = (res_leading_dim,)
+    else:
+        res_shape = (res_leading_dim,) + v.shape[1:]
+
     v = v.reshape(matrix.shape[1], *rest_dims, -1)
     if isinstance(matrix, DiagonalMatrix):
-        return np.einsum('d,d...->d...', matrix.diagonals, v).ravel()
+        return cast(np.ndarray, matrix @ v).reshape(res_shape)
     elif isinstance(matrix, DenseMatrix):
         return np.tensordot(
             matrix.asmatrix(),
             v,
             axes=(-1,0)
-        ).ravel()
+        ).reshape(res_shape)
     elif isinstance(matrix, ScaledIdentityMatrix):
-        return matrix.coeff * v.ravel()
+        return (matrix.coeff * v.ravel()).reshape(res_shape)
     else:
         raise RuntimeError(f"Unsupported type{type(matrix)}!")
 
 def identity(n, dtype=np.float64) -> ScaledIdentityMatrix:
     """ Create an identity matrix """
+    n = int(n)
+    assert isinstance(n, int), n
     return ScaledIdentityMatrix(n, dtype(1.0))
 
 

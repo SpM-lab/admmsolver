@@ -6,7 +6,7 @@ from itertools import product
 from typing import Tuple, Union, Optional, List, Sequence, cast, Callable
 
 from .objectivefunc import ObjectiveFunctionBase
-from .matrix import MatrixBase, asmatrixtype
+from .matrix import MatrixBase, PartialDiagonalMatrix, asmatrixtype
 from .util import norm
 
 class EqualityCondition(object):
@@ -32,7 +32,7 @@ class EqualityCondition(object):
         self.i2 = i2
         self.E1 = E1
         self.E2 = E2
-    
+
     @property
     def size(self) -> int:
         return self.E1.shape[0]
@@ -55,21 +55,25 @@ class Model(object):
         self._num_func = len(functions)
         self._E = np.full((self._num_func, self._num_func), None)
 
-        for e in equality_conditons:
-            if isinstance(e, tuple):
-                # For backward compatibility
-                self._add_equality_condition(EqualityCondition(*e))
-            else:
-                self._add_equality_condition(e)
-        
+        for ie, e in enumerate(equality_conditons):
+            try:
+                if isinstance(e, tuple):
+                    # For backward compatibility
+                    self._add_equality_condition(EqualityCondition(*e))
+                else:
+                    self._add_equality_condition(e)
+            except Exception as e:
+                print(f"Error occured when adding {ie}-th equality condition!")
+                raise e
+
     @property
     def functions(self) -> Sequence[ObjectiveFunctionBase]:
         return self._functions
-    
+
     @property
     def num_func(self) -> int:
         return self._num_func
-    
+
     @property
     def E(self) -> np.ndarray:
         """ E_{ij} """
@@ -80,8 +84,10 @@ class Model(object):
         Add an equality condition
         """
         assert isinstance(e, EqualityCondition)
-        assert e.E1.shape[1] == self._functions[e.i1].size_x
-        assert e.E2.shape[1] == self._functions[e.i2].size_x
+        assert e.E1.shape[1] == self._functions[e.i1].size_x, \
+            f"{e.E1.shape} {self._functions[e.i1].size_x}"
+        assert e.E2.shape[1] == self._functions[e.i2].size_x, \
+            f"{e.E2.shape} {self._functions[e.i2].size_x}"
         if self._E[e.i1, e.i2] is not None:
             raise RuntimeError("Duplicate entries in equality_conditions")
         self._E[e.i2, e.i1] = e.E1
@@ -160,6 +166,8 @@ class SimpleOptimizer(object):
                 E[i,k].T.conjugate() @ self._h[k,i]
                 - self._mu[k,i] * E[i,k].T.conjugate()@ (E[k,i] @ self._x[i])
                 )
+            assert res[-1].size == self._model.functions[k].size_x, \
+                f"{res[-1].size} {self._model.functions[k].size_x}"
 
         # k < i
         for i in range(k+1, self._model.num_func):
@@ -169,7 +177,9 @@ class SimpleOptimizer(object):
                     - E[i,k].T.conjugate() @ self._h[i,k]
                     - self._mu[i,k] * E[i,k].T.conjugate() @ (E[k,i] @ self._x[i])
                 )
-        
+            assert res[-1].size == self._model.functions[k].size_x, \
+                f"{res[-1].size} {self._model.functions[k].size_x}"
+
         if len(res) > 0:
             return _sum(res)
         else:

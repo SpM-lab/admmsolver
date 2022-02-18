@@ -150,6 +150,10 @@ def test_matvec_rectangular(n, m):
     mat.append(DiagonalMatrix(np.ones(min(n,m)), shape=(n,m)))
     mat.append(ScaledIdentityMatrix((n,m), 1+1j))
     mat.append(PartialDiagonalMatrix(_randn_cmplx(n//2, m//2), (2,)))
+    mat.append(PartialDiagonalMatrix(
+            DiagonalMatrix(_randn_cmplx(min(n//2, m//2)), (n//2, m//2)),
+            (2,))
+        )
     mat.append(DenseMatrix(_randn_cmplx(n, m)))
 
     vec = np.ones(m)
@@ -159,6 +163,31 @@ def test_matvec_rectangular(n, m):
         mv = m @ vec
         assert isinstance(mv, np.ndarray)
         np.testing.assert_allclose(mv, m.asmatrix()@vec)
+
+
+@pytest.mark.parametrize("n,m", [(2,4),(4,2)])
+def test_batched_matvec(n, m):
+    np.random.seed(100)
+    nbatch = 3
+
+    mat = []
+    mat.append(DiagonalMatrix(np.ones(min(n,m)), shape=(n,m)))
+    mat.append(ScaledIdentityMatrix((n,m), 1+1j))
+    mat.append(PartialDiagonalMatrix(_randn_cmplx(n//2, m//2), (2,)))
+    mat.append(PartialDiagonalMatrix(
+            DiagonalMatrix(_randn_cmplx(min(n//2, m//2)), (n//2, m//2)),
+            (2,))
+        )
+    mat.append(DenseMatrix(_randn_cmplx(n, m)))
+
+    vec = _randn_cmplx(m, nbatch)
+
+    for m in mat:
+        print(type(m))
+        mv = m @ vec
+        assert isinstance(mv, np.ndarray)
+        np.testing.assert_allclose(mv, m.asmatrix()@vec)
+
 
 def test_matmal_diagonal():
     np.random.seed(100)

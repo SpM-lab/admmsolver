@@ -162,7 +162,8 @@ class L1Regularizer(ObjectiveFunctionBase):
     L1 regularization
         F(x) = alpha * |x|_1
     """
-    def __init__(self, alpha, size_x) -> None:
+    def __init__(self, alpha: float, size_x: int) -> None:
+        assert isinstance(size_x, int), type(size_x)
         super().__init__(size_x)
         assert alpha > 0
         self._alpha = alpha
@@ -305,7 +306,8 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
             diagonals = np.full(mu.shape[0], mu.matrix.coeff)
         elif isinstance(mu.matrix, DiagonalMatrix):
             diagonals = np.einsum('i,j->ij', mu.matrix.diagonals, np.ones(np.prod(mu.rest_dims))).ravel()
-        assert diagonals is not None and diagonals.ndim == 1, diagonals.shape
+        assert diagonals is not None
+        assert diagonals.ndim == 1, diagonals.shape
 
 
         if h is None:
