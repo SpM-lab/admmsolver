@@ -97,7 +97,7 @@ class Model(object):
     @property
     def EcE2(self) -> np.ndarray:
         """ E[k,i]^dagger E[k,i] at (k, i)"""
-        return self._EcE
+        return self._EcE2
 
     def _add_equality_condition(self, e: EqualityCondition) -> None:
         """
