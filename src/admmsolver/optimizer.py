@@ -55,6 +55,7 @@ class Model(object):
         self._num_func = len(functions)
         self._E = np.full((self._num_func, self._num_func), None)
         self._EcE = np.full((self._num_func, self._num_func), None)
+        self._EcE2 = np.full((self._num_func, self._num_func), None)
 
         for ie, e in enumerate(equality_conditons):
             try:
@@ -72,6 +73,7 @@ class Model(object):
                 if self._E[k, i] is None:
                     continue
                 self._EcE[k,i] = self._E[i,k].T.conjugate()@ self._E[k,i]
+                self._EcE2[k,i] = self._E[k,i].T.conjugate()@ self._E[k,i]
 
 
     @property
@@ -89,7 +91,12 @@ class Model(object):
 
     @property
     def EcE(self) -> np.ndarray:
-        """ E[i,k]^dagger E[k,i] """
+        """ E[i,k]^dagger E[k,i] at (k, i) """
+        return self._EcE
+
+    @property
+    def EcE2(self) -> np.ndarray:
+        """ E[k,i]^dagger E[k,i] at (k, i)"""
         return self._EcE
 
     def _add_equality_condition(self, e: EqualityCondition) -> None:
@@ -202,21 +209,20 @@ class SimpleOptimizer(object):
     def _mu_k(self, k) -> Optional[MatrixBase]:
         """ Compute `mu` for optimizing `x_k` """
 
-        E = self._model.E
-        EcE = self._model.EcE
+        EcE2 = self._model.EcE2
 
         res = []
         # i < k
         for i in range(k):
             if self._h[k,i] is None:
                 continue
-            res.append(self._mu[k,i] * EcE[i,k])
+            res.append(self._mu[k,i] * EcE2[i,k])
 
         # k < i
         for i in range(k+1, self._model.num_func):
             if self._h[i,k] is None:
                 continue
-            res.append(self._mu[i,k] * EcE[i,k])
+            res.append(self._mu[i,k] * EcE2[i,k])
 
         if len(res) > 0:
             return _sum(res)
