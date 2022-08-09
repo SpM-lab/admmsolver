@@ -54,6 +54,7 @@ class Model(object):
         self._functions = functions
         self._num_func = len(functions)
         self._E = np.full((self._num_func, self._num_func), None)
+        self._EcE = np.full((self._num_func, self._num_func), None)
 
         for ie, e in enumerate(equality_conditons):
             try:
@@ -65,6 +66,13 @@ class Model(object):
             except Exception as e:
                 print(f"Error occured when adding {ie}-th equality condition!")
                 raise e
+
+        for i in range(self._num_func):
+            for k in range(self._num_func):
+                if self._E[k, i] is None:
+                    continue
+                self._EcE[k,i] = self._E[i,k].T.conjugate()@ self._E[k,i]
+
 
     @property
     def functions(self) -> Sequence[ObjectiveFunctionBase]:
@@ -78,6 +86,11 @@ class Model(object):
     def E(self) -> np.ndarray:
         """ E_{ij} """
         return self._E
+
+    @property
+    def EcE(self) -> np.ndarray:
+        """ E[i,k]^dagger E[k,i] """
+        return self._EcE
 
     def _add_equality_condition(self, e: EqualityCondition) -> None:
         """
@@ -157,6 +170,7 @@ class SimpleOptimizer(object):
         res = []
 
         E = self._model.E
+        EcE = self._model.EcE
 
         # i < k
         for i in range(k):
@@ -164,7 +178,7 @@ class SimpleOptimizer(object):
                 continue
             res.append(
                 E[i,k].T.conjugate() @ self._h[k,i]
-                - self._mu[k,i] * E[i,k].T.conjugate()@ (E[k,i] @ self._x[i])
+                - self._mu[k,i] * (EcE[k,i] @ self._x[i])
                 )
             assert res[-1].size == self._model.functions[k].size_x, \
                 f"{res[-1].size} {self._model.functions[k].size_x}"
@@ -175,7 +189,7 @@ class SimpleOptimizer(object):
                 continue
             res.append(
                     - E[i,k].T.conjugate() @ self._h[i,k]
-                    - self._mu[i,k] * E[i,k].T.conjugate() @ (E[k,i] @ self._x[i])
+                    - self._mu[i,k] * (EcE[k,i] @ self._x[i])
                 )
             assert res[-1].size == self._model.functions[k].size_x, \
                 f"{res[-1].size} {self._model.functions[k].size_x}"
@@ -189,25 +203,26 @@ class SimpleOptimizer(object):
         """ Compute `mu` for optimizing `x_k` """
 
         E = self._model.E
+        EcE = self._model.EcE
 
         res = []
         # i < k
         for i in range(k):
             if self._h[k,i] is None:
                 continue
-            res.append(self._mu[k,i] * E[i,k].T.conjugate() @ E[i,k])
+            res.append(self._mu[k,i] * EcE[i,k])
 
         # k < i
         for i in range(k+1, self._model.num_func):
             if self._h[i,k] is None:
                 continue
-            res.append(self._mu[i,k] * E[i,k].T.conjugate() @ E[i,k])
-        
+            res.append(self._mu[i,k] * EcE[i,k])
+
         if len(res) > 0:
             return _sum(res)
         else:
             return None
- 
+
     def check_convergence(self, rtol) -> bool:
         """ Check convergence """
         converged = True
