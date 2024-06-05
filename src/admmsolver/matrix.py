@@ -282,7 +282,14 @@ class DiagonalMatrix(MatrixBase):
                 (self.shape[0], other.shape[1])
             )
         elif isinstance(other, PartialDiagonalMatrix):
-            return DenseMatrix(self._diagonals[:, None] * other.asmatrix())
+            diags = self.diagonals.reshape(other.matrix.shape[0], -1)
+            if np.allclose(diags, diags[:, 0:1]):
+                return PartialDiagonalMatrix(
+                    diags[:, 0][:, None] * other.matrix.asmatrix(),
+                    other.rest_dims
+                )
+            else:
+                return DenseMatrix(self._diagonals[:, None] * other.asmatrix())
         elif isinstance(other, ScaledIdentityMatrix):
             return self @ other.to_diagonal_matrix()
         else:
@@ -339,10 +346,13 @@ class PartialDiagonalMatrix(MatrixBase):
         assert isinstance(other, MatrixBase) or isinstance(other, np.ndarray)
         if isinstance(other, np.ndarray):
             return self.matvec(other)
-        elif isinstance(other, PartialDiagonalMatrix) and self.rest_dims == other.rest_dims:
+
+        if isinstance(other, PartialDiagonalMatrix) and self.rest_dims == other.rest_dims:
             return PartialDiagonalMatrix(self.matrix@other.matrix, self.rest_dims)
-        else:
-            return DenseMatrix(self.asmatrix() @ other.asmatrix())
+        if isinstance(other, ScaledIdentityMatrix) and other.is_diagonal():
+            return PartialDiagonalMatrix(other.coeff * self.matrix, self.rest_dims)
+    
+        return DenseMatrix(self.asmatrix() @ other.asmatrix())
 
     def __mul__(self, other) -> 'PartialDiagonalMatrix':
         if type(other) in [float, complex, np.float64, np.complex128]:
@@ -456,6 +466,12 @@ def _add_DiagonalMatrix_PartialDiagonalMatrix(a, b):
             b.matrix + DiagonalMatrix(a_diag[:, 0]),
             b.rest_dims
         )
+    return DenseMatrix(a.asmatrix() + b.asmatrix())
+
+
+def _add_PartialDiagonalMatrix_PartialDiagonalMatrix(a, b):
+    if a.rest_dims == b.rest_dims:
+        return PartialDiagonalMatrix(a.matrix + b.matrix, a.rest_dims)
     return DenseMatrix(a.asmatrix() + b.asmatrix())
 
 

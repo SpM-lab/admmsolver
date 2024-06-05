@@ -8,7 +8,7 @@ def _randn_cmplx(*shape) -> np.ndarray:
     return np.random.randn(*shape) + 1j * np.random.randn(*shape)
 
 
-def test_matmal():
+def test_matmul():
     np.random.seed(100)
 
     # (12, 12) * (12, 4)
@@ -33,7 +33,7 @@ def test_matmal():
             np.testing.assert_allclose(lr.asmatrix(), l.asmatrix() @ r.asmatrix())
 
 
-def test_matmal2():
+def test_matmul():
     np.random.seed(100)
 
     # (4, 12) * (12, 12)
@@ -124,6 +124,32 @@ def test_DiagonalMatrix_PartialDiagonalMatrix():
     np.testing.assert_allclose(ab.asmatrix(), a.asmatrix() + b.asmatrix())
 
 
+def test_PartialDiagonalMatrix_PartialDiagonalMatrix():
+    np.random.seed(100)
+    n = 3
+    a = PartialDiagonalMatrix(_randn_cmplx(n, n), (2, 2))
+    b = PartialDiagonalMatrix(_randn_cmplx(n, n), (2, 2))
+    ab = a + b
+    assert isinstance(ab, PartialDiagonalMatrix)
+    np.testing.assert_allclose(ab.asmatrix(), a.asmatrix() + b.asmatrix())
+
+
+def test_matmul_DiagonalMatrix_PartialDiagonalMatrix():
+    np.random.seed(100)
+
+    n = 3
+    diags_ = np.random.randn(n)
+    diags = np.zeros((n, 4))
+    for i in range(4):
+        diags[:, i] = diags_
+
+    a = DiagonalMatrix(diags.ravel())
+    b = PartialDiagonalMatrix(_randn_cmplx(n, n), (2, 2))
+    
+    ab = a @ b
+    assert isinstance(ab, PartialDiagonalMatrix)
+    np.testing.assert_allclose(ab.asmatrix(), a.asmatrix() @ b.asmatrix())
+
 def test_inv():
     np.random.seed(100)
 
@@ -207,7 +233,7 @@ def test_batched_matvec(n, m):
         np.testing.assert_allclose(mv, m.asmatrix()@vec)
 
 
-def test_matmal_diagonal():
+def test_matmul_diagonal():
     np.random.seed(100)
     a = DiagonalMatrix(np.random.randn(2), shape=(4,2))
     b = DiagonalMatrix(np.random.randn(2), shape=(2,4))
