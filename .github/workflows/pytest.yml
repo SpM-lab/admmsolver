@@ -16,10 +16,6 @@ jobs:
             numpy-version: auto
             scipy-version: auto
             python-version: 3.10
-          - os: ubuntu-latest
-            numpy-version: auto
-            scipy-version: auto
-            python-version: 3.11
 
     steps:
       - uses: actions/checkout@v2
