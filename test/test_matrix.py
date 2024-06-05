@@ -33,7 +33,7 @@ def test_matmul():
             np.testing.assert_allclose(lr.asmatrix(), l.asmatrix() @ r.asmatrix())
 
 
-def test_matmul():
+def test_matmul2():
     np.random.seed(100)
 
     # (4, 12) * (12, 12)

@@ -140,7 +140,6 @@ class ScaledIdentityMatrix(MatrixBase):
             self.shape = shape
         else:
             raise ValueError("Invalid shape value!")
-        # type: Union[complex, float, np.float64, np.complex128]
         self.coeff = coeff
         self.ndim = 2  # type: int
 
