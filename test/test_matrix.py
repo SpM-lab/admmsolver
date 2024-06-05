@@ -106,6 +106,24 @@ def test_add():
             assert isinstance(m3, MatrixBase)
             np.testing.assert_allclose(m3.asmatrix(), m.asmatrix() + m2.asmatrix())
 
+
+def test_DiagonalMatrix_PartialDiagonalMatrix():
+    np.random.seed(100)
+
+    n = 3
+    diags_ = np.random.randn(n)
+    diags = np.zeros((n, 4))
+    for i in range(4):
+        diags[:, i] = diags_
+
+    a = DiagonalMatrix(diags.ravel())
+    b = PartialDiagonalMatrix(_randn_cmplx(n, n), (2, 2))
+    
+    ab = a + b
+    assert isinstance(ab, PartialDiagonalMatrix)
+    np.testing.assert_allclose(ab.asmatrix(), a.asmatrix() + b.asmatrix())
+
+
 def test_inv():
     np.random.seed(100)
 
