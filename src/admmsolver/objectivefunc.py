@@ -178,10 +178,10 @@ class L1Regularizer(ObjectiveFunctionBase):
         """
         x <- argmin_x alpha * |x|_1 + h^+ x + x^+ h + mu x^+ x
 
-        This function works only if all the following conditions are met:
-          * h and x are real vectors
-          * mu is a diagonal matrix
-        Return a real vector.
+        ``h`` (and hence ``x``) may be real or complex; the proximal operator is
+        the magnitude soft-threshold, which shrinks |x| by the threshold while
+        keeping the phase.  ``mu`` must be a diagonal matrix.  The result is
+        float64 for real input and complex128 for complex input.
         """
         _assert_types(h, [np.ndarray])
         assert isinstance(mu, DiagonalMatrix) or isinstance(mu, ScaledIdentityMatrix)
@@ -190,8 +190,9 @@ class L1Regularizer(ObjectiveFunctionBase):
             raise ValueError("h must not be None!")
         if mu is None:
             raise ValueError("mu must not be None!")
-        if np.iscomplexobj(h):
-            h = h.real
+        # The L1 proximal operator (soft-thresholding) works for both real and
+        # complex-valued x; _softmax below handles the complex case by shrinking
+        # the magnitude while keeping the phase.
         return _softmax(-(h/mu.diagonals), 0.5*self._alpha/mu.diagonals)
 
 
@@ -210,7 +211,7 @@ class L2Regularizer(ObjectiveFunctionBase):
         self._AcA = matmul(A.conjugate().T, A)
 
         # B = (A^+ A + mu)^{-1}
-        self._B_cache = (0, DenseMatrix(np.zeros((1,1))))
+        self._B_cache = (0, DenseMatrix(np.zeros((1,1)))) # type: Tuple[int, MatrixBase]
 
     def __call__(self, x: np.ndarray):
         return self._alpha * np.linalg.norm(matmul(self._A, x))**2
@@ -220,7 +221,7 @@ class L2Regularizer(ObjectiveFunctionBase):
         if self._B_cache[0] != hash_:
             self._B_cache = (
                 hash_,
-                inv(add(self._alpha * self._AcA, mu))
+                cast(MatrixBase, inv(add(self._alpha * self._AcA, mu)))
             )
         return self._B_cache[1]
 
@@ -277,6 +278,13 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
 
     1) Reshape x into a three-way tensor
     2) Along a given axis, we compute eigenvalues and remove negative ones (we assume hermition matrices).
+
+    Real-symmetric and complex-Hermitian blocks are both supported.  ``solve``
+    returns the exact minimizer of ``h^+ x + x^+ h + x^+ mu x`` over the PSD cone
+    when the penalty ``mu`` is uniform within each block (a ScaledIdentityMatrix,
+    as produced by the ADMM optimizer).  For a genuinely non-uniform diagonal
+    ``mu`` the returned value is Hermitian, PSD and feasible but only an
+    approximation of the weighted argmin.
     """
     def __init__(self, shape: Union[Sequence,np.ndarray], axis: int):
         assert len(shape) == 3
@@ -312,18 +320,55 @@ class SemiPositiveDefinitePenalty(ObjectiveFunctionBase):
 
         if h is None:
             h = np.zeros(np.prod(self._shape))
-        elif np.iscomplexobj(h):
-            h = h.real
 
         assert diagonals.size == h.size
 
-        x_ = (-(h/diagonals)).reshape(self._shape)
-        x_ = np.moveaxis(x_, self._axis, 0)
-        for i in range(x_.shape[0]):
-            evals, evecs = np.linalg.eigh(x_[i,:,:])
+        # Minimize  h^+ x + x^+ h + x^+ mu x  over the (real-symmetric or
+        # complex-Hermitian) positive semi-definite cone, block by block.
+        #
+        # The Hermitian constraint couples the paired entries (i,j) and (j,i)
+        # (x_ji = conj(x_ij)).  Under the diagonal metric mu with per-entry
+        # weights d, the metric projection onto the Hermitian subspace of the
+        # unconstrained centre x* = -h/d is the weighted average
+        #     centre_ij = (d_ij x*_ij + d_ji conj(x*_ji)) / (d_ij + d_ji)
+        #               = -(h_ij + conj(h_ji)) / (d_ij + d_ji).
+        # We divide numerator and denominator of each pair by a common per-pair
+        # scale before summing, so neither ``h_ij + conj(h_ji)`` nor
+        # ``d_ij + d_ji`` overflows for very large (or underflows for very small)
+        # finite operands.  The scale cancels in the ratio.
+        #
+        # Eigenvalue clipping of this Hermitian centre is the *exact* PSD
+        # projection when the weights are uniform within each block -- which is
+        # the case for the scalar ADMM penalty (a ScaledIdentityMatrix mu).  For
+        # a genuinely non-uniform diagonal metric the result is still Hermitian,
+        # PSD and feasible, but only an approximation of the weighted argmin.
+        hblk = np.asarray(h).reshape(self._shape)
+        dblk = np.asarray(diagonals, dtype=np.float64).reshape(self._shape)
+        hblk = np.moveaxis(hblk, self._axis, 0)
+        dblk = np.moveaxis(dblk, self._axis, 0)
+        hblkT = np.conjugate(np.swapaxes(hblk, 1, 2))         # conj(h_ji)
+        dblkT = np.swapaxes(dblk, 1, 2)                        # d_ji
+        # Per-pair scale factor (cancels in the ratio).  Use max(|re|,|im|) for
+        # complex entries so it never overflows the way np.abs(complex) can when
+        # the components are large but finite.  (A single shared scale assumes the
+        # paired operands are of comparable magnitude, which always holds for the
+        # O(1)-scaled ADMM penalties and data; it is not designed for adversarial
+        # blocks mixing sub-normal and near-DBL_MAX entries.)
+        def _comp_scale(a):
+            if np.iscomplexobj(a):
+                return np.maximum(np.abs(a.real), np.abs(a.imag))
+            return np.abs(a)
+        scale = np.maximum.reduce([_comp_scale(hblk), _comp_scale(hblkT), dblk, dblkT])
+        scale = np.where(scale > 0.0, scale, 1.0)
+        hbar = hblk / scale + hblkT / scale                   # (h_ij + conj(h_ji)) / scale
+        dbar = dblk / scale + dblkT / scale                   # (d_ij + d_ji) / scale
+        centre = -(hbar / dbar)
+        x_ = np.empty_like(centre)
+        for i in range(centre.shape[0]):
+            evals, evecs = np.linalg.eigh(centre[i, :, :])
             idx = evals >= 0
             U = evecs[:, idx]
-            x_[i,:,:] = U @ (evals[idx,None] * U.conjugate().T)
+            x_[i, :, :] = U @ (evals[idx, None] * U.conjugate().T)
         return np.moveaxis(x_, 0, self._axis).ravel()
 
 
@@ -334,22 +379,58 @@ def _project_plus(x):
 
 def _softmax(y: np.ndarray, lambda_: np.ndarray):
     """
-    Softmax function
+    Soft-thresholding (proximal operator of the L1 norm).
 
-    y - lambda_ (y >  lambda_)
-    y + lambda_ (y < -lambda_)
-    0           (otherwise)
+    Shrinks the magnitude of each component by ``lambda_`` while keeping its
+    phase, and clips it at zero:
+
+        max(|y| - lambda_, 0) * y / |y|     (y != 0)
+        0                                   (y == 0)
+
+    This is valid for both real and complex ``y``.  For real ``y`` it reduces to
+
+        y - lambda_ (y >  lambda_)
+        y + lambda_ (y < -lambda_)
+        0           (otherwise)
+
+    The result is returned as float64 for real input and complex128 for complex
+    input (integer/float32 input is promoted, matching the historical float64
+    real behavior and avoiding integer truncation of the threshold).
     """
     assert isinstance(y, np.ndarray) and y.ndim == 1
     assert isinstance(lambda_, np.ndarray) and lambda_.ndim == 1
     assert (np.asarray(lambda_) > 0).all()
     assert y.size == lambda_.size
-    res = np.zeros(y.size)
 
-    idx = y > lambda_
-    res[idx] = y[idx] - lambda_[idx]
+    if not np.iscomplexobj(y):
+        # Real path: literally the historical piecewise implementation, so the
+        # result is bit-for-bit identical for every real dtype (the arithmetic
+        # happens in the operands' dtype and is stored into a float64 array).
+        res = np.zeros(y.size)
+        idx = y > lambda_
+        res[idx] = y[idx] - lambda_[idx]
+        idx = y < -lambda_
+        res[idx] = y[idx] + lambda_[idx]
+        return res
 
-    idx = y < -lambda_
-    res[idx] = y[idx] + lambda_[idx]
-
-    return res
+    # Complex path: shrink the magnitude by lambda_ while keeping the phase,
+    # i.e. multiply by scale = max(1 - lambda/|y|, 0).
+    y = y.astype(np.complex128, copy=False)
+    lambda_ = np.asarray(lambda_, dtype=np.float64)
+    # Evaluate lambda/|y| with per-element component scaling so it stays finite
+    # even when |y| = sqrt(re**2 + im**2) itself overflows float64 (both np.abs
+    # and np.hypot would overflow for e.g. y = 1.3e308 + 1.3e308j).
+    #   m = max(|re|, |im|),   |y| = m * hypot(re/m, im/m),
+    #   lambda/|y| = (lambda/m) / hypot(re/m, im/m).
+    m = np.maximum(np.abs(y.real), np.abs(y.imag))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rm = np.where(m > 0.0, np.hypot(y.real / m, y.imag / m), 0.0)  # |y|/m in [1, sqrt2]
+        ratio = np.where(m > 0.0, (lambda_ / m) / rm, 0.0)             # lambda / |y|
+        scale = np.maximum(1.0 - ratio, 0.0)
+        res_c = y * scale
+    # Entries with an infinite component have infinite magnitude, so a finite
+    # threshold leaves them unchanged (and ``y * scale`` would give inf + nan*1j).
+    inf_mag = np.isinf(m)
+    if inf_mag.any():
+        res_c = np.where(inf_mag, y, res_c)
+    return cast(np.ndarray, res_c)
