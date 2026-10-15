@@ -1,5 +1,10 @@
 A fast and general ADMM solver
 =======================================================================
+
+> Part of the [SpM-lab](https://spm-lab.github.io/) tools for imaginary-time Green's functions and analytic continuation.
+> Related: the [sparse-ir ecosystem](https://spm-lab.github.io/sparse-ir-doc/) (IR/DLR bases, sparse sampling) and the other
+> [analytic continuation tools](https://spm-lab.github.io/#analytic-continuation).
+
 # Installation
 
 ```
